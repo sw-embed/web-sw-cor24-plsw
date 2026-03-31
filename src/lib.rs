@@ -1,7 +1,7 @@
 pub mod components;
 pub mod demos;
 
-use components::{SourceEditor, WizardSidebar, WizardStep};
+use components::{MacroEditor, MacroFile, SourceEditor, WizardSidebar, WizardStep};
 use demos::DEMOS;
 use gloo::file::File;
 use gloo::file::callbacks::FileReader;
@@ -53,6 +53,15 @@ pub fn app() -> Html {
     let selected_demo = use_state(|| Some(0usize));
     let current_step = use_state(|| WizardStep::Source);
 
+    // Macro files state
+    let macro_files = use_state(|| {
+        DEMOS[0]
+            .macros
+            .iter()
+            .map(|m| MacroFile::new(m.name.to_string(), m.source.to_string()))
+            .collect::<Vec<_>>()
+    });
+
     // File reader state (must keep alive during async read)
     let _file_reader = use_state(|| None::<FileReader>);
 
@@ -61,12 +70,20 @@ pub fn app() -> Html {
         let source = source.clone();
         let selected_demo = selected_demo.clone();
         let current_step = current_step.clone();
+        let macro_files = macro_files.clone();
         Callback::from(move |e: Event| {
             if let Some(target) = e.target()
                 && let Some(select) = target.dyn_ref::<HtmlSelectElement>()
             {
                 let idx: usize = select.value().parse().unwrap_or(0);
                 source.set(DEMOS[idx].source.to_string());
+                macro_files.set(
+                    DEMOS[idx]
+                        .macros
+                        .iter()
+                        .map(|m| MacroFile::new(m.name.to_string(), m.source.to_string()))
+                        .collect(),
+                );
                 selected_demo.set(Some(idx));
                 current_step.set(WizardStep::Source);
                 // Scroll notebook to top
@@ -155,6 +172,70 @@ pub fn app() -> Html {
         })
     };
 
+    // Macro editor callbacks
+    let on_macro_change = {
+        let macro_files = macro_files.clone();
+        Callback::from(move |(idx, new_source): (usize, String)| {
+            let mut files = (*macro_files).clone();
+            if let Some(f) = files.get_mut(idx) {
+                f.source = new_source;
+            }
+            macro_files.set(files);
+        })
+    };
+
+    let on_macro_add = {
+        let macro_files = macro_files.clone();
+        Callback::from(move |()| {
+            let mut files = (*macro_files).clone();
+            let n = files.len() + 1;
+            files.push(MacroFile::new(format!("MACRO{n}.msw"), String::new()));
+            macro_files.set(files);
+        })
+    };
+
+    let on_macro_remove = {
+        let macro_files = macro_files.clone();
+        Callback::from(move |idx: usize| {
+            let mut files = (*macro_files).clone();
+            if idx < files.len() {
+                files.remove(idx);
+            }
+            macro_files.set(files);
+        })
+    };
+
+    let on_macro_rename = {
+        let macro_files = macro_files.clone();
+        Callback::from(move |(idx, new_name): (usize, String)| {
+            let mut files = (*macro_files).clone();
+            if let Some(f) = files.get_mut(idx) {
+                f.name = new_name;
+            }
+            macro_files.set(files);
+        })
+    };
+
+    let on_macro_toggle = {
+        let macro_files = macro_files.clone();
+        Callback::from(move |idx: usize| {
+            let mut files = (*macro_files).clone();
+            if let Some(f) = files.get_mut(idx) {
+                f.collapsed = !f.collapsed;
+            }
+            macro_files.set(files);
+        })
+    };
+
+    let on_macro_upload = {
+        let macro_files = macro_files.clone();
+        Callback::from(move |(name, source): (String, String)| {
+            let mut files = (*macro_files).clone();
+            files.push(MacroFile::new(name, source));
+            macro_files.set(files);
+        })
+    };
+
     let example_name = selected_demo.as_ref().map(|&idx| DEMOS[idx].name);
 
     html! {
@@ -236,18 +317,17 @@ pub fn app() -> Html {
                         example_name={example_name.map(AttrValue::from)}
                     />
 
-                    // Placeholder cells for future steps
+                    // Macro editor cell
                     if *current_step >= WizardStep::Macros {
-                        <div class="notebook-cell" id="cell-macros">
-                            <div class="cell-header">
-                                <span>{"Macro Files (.msw)"}</span>
-                            </div>
-                            <div class="cell-content">
-                                <div class="notebook-placeholder">
-                                    <span>{"Macro editor -- coming soon"}</span>
-                                </div>
-                            </div>
-                        </div>
+                        <MacroEditor
+                            files={(*macro_files).clone()}
+                            on_change={on_macro_change.clone()}
+                            on_add={on_macro_add.clone()}
+                            on_remove={on_macro_remove.clone()}
+                            on_rename={on_macro_rename.clone()}
+                            on_toggle_collapse={on_macro_toggle.clone()}
+                            on_upload={on_macro_upload.clone()}
+                        />
                     }
 
                     if *current_step >= WizardStep::Preprocess {

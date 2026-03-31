@@ -304,6 +304,134 @@
     color: var(--teal);
 }
 
+/* --- Macro editor --- */
+.macro-header-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.macro-action-btn {
+    padding: 2px 8px;
+    background: var(--surface1);
+    color: var(--blue);
+    border: 1px solid var(--surface2);
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 0.85em;
+    font-weight: bold;
+    transition: all 0.15s;
+}
+
+.macro-action-btn:hover {
+    background: var(--surface2);
+    border-color: var(--blue);
+}
+
+.macro-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 32px;
+    color: var(--overlay1);
+    font-size: 0.9em;
+}
+
+.macro-empty-hint {
+    font-size: 0.8em;
+    color: var(--overlay0);
+}
+
+.macro-file-cell {
+    border-top: 1px solid var(--surface0);
+}
+
+.macro-file-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: var(--surface0);
+}
+
+.macro-collapse-btn {
+    padding: 0 4px;
+    background: none;
+    color: var(--overlay2);
+    border: none;
+    cursor: pointer;
+    font-size: 0.7em;
+    transition: color 0.15s;
+}
+
+.macro-collapse-btn:hover {
+    color: var(--blue);
+}
+
+.macro-name-input {
+    flex: 1;
+    padding: 3px 6px;
+    background: var(--mantle);
+    color: var(--yellow);
+    border: 1px solid transparent;
+    border-radius: 3px;
+    font-family: var(--mono);
+    font-size: 0.8em;
+    font-weight: bold;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.macro-name-input:focus {
+    border-color: var(--blue);
+}
+
+.macro-remove-btn {
+    padding: 0 6px;
+    background: none;
+    color: var(--overlay1);
+    border: none;
+    cursor: pointer;
+    font-size: 1.1em;
+    transition: color 0.15s;
+}
+
+.macro-remove-btn:hover {
+    color: var(--red);
+}
+
+.macro-file-editor {
+    min-height: 150px;
+    height: 25vh;
+}
+
+/* Macro syntax highlighting */
+.hl-macro-keyword {
+    color: var(--flamingo);
+    font-weight: bold;
+}
+
+.hl-directive {
+    color: var(--sky);
+    font-weight: bold;
+}
+
+.hl-gen-string {
+    color: var(--teal);
+}
+
+.hl-gen-param {
+    color: var(--peach);
+    font-weight: bold;
+}
+
+.hl-type-hint {
+    color: var(--lavender);
+    font-style: italic;
+}
+
 /* --- Notebook placeholder --- */
 .notebook-placeholder {
     display: flex;

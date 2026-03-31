@@ -1,11 +1,19 @@
 //! Embedded PL/SW demo programs for the source editor.
 
-/// A demo program with a name, description, and PL/SW source.
+/// A macro file included with a demo.
+#[derive(Clone, PartialEq)]
+pub struct DemoMacro {
+    pub name: &'static str,
+    pub source: &'static str,
+}
+
+/// A demo program with a name, description, PL/SW source, and optional macro files.
 #[derive(Clone, PartialEq)]
 pub struct Demo {
     pub name: &'static str,
     pub description: &'static str,
     pub source: &'static str,
+    pub macros: &'static [DemoMacro],
 }
 
 pub const DEMOS: &[Demo] = &[
@@ -25,6 +33,7 @@ HELLO: PROC;
   RETURN;
 END HELLO;
 "#,
+        macros: &[],
     },
     Demo {
         name: "Blink LED",
@@ -47,6 +56,7 @@ BLINK: PROC;
   END;
 END BLINK;
 "#,
+        macros: &[],
     },
     Demo {
         name: "Arithmetic",
@@ -66,6 +76,7 @@ MAIN: PROC;
   RETURN;
 END MAIN;
 "#,
+        macros: &[],
     },
     Demo {
         name: "Inline Assembly",
@@ -88,11 +99,13 @@ ASMTEST: PROC;
   RETURN;
 END ASMTEST;
 "#,
+        macros: &[],
     },
     Demo {
         name: "Macro Usage",
         description: "Demonstrate ?MACRO invocation",
         source: r#"/* Macro usage demo */
+%INCLUDE UART;
 
 /* Invoke a macro to set up UART output */
 ?UART_INIT(PORT=0xFF0100);
@@ -109,5 +122,26 @@ MAIN: PROC;
   RETURN;
 END MAIN;
 "#,
+        macros: &[DemoMacro {
+            name: "UART.msw",
+            source: r#"/* UART.msw -- UART I/O macros for COR24 */
+
+MACRODEF UART_INIT;
+  REQUIRED PORT(expr);
+  GEN DO;
+    "lc r0, {PORT}";
+    "st r0, [0xFF0100]";
+  END;
+END;
+
+MACRODEF UART_PUTC;
+  REQUIRED CH(expr);
+  GEN DO;
+    "ld r0, {CH}";
+    "st r0, [0xFF0102]";
+  END;
+END;
+"#,
+        }],
     },
 ];
