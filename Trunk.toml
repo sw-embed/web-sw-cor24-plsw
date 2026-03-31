@@ -1,0 +1,6 @@
+[build]
+dist = "dist"
+public_url = "/web-sw-cor24-plsw/"
+
+[serve]
+port = 9507

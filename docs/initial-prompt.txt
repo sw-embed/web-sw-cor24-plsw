@@ -1,0 +1,133 @@
+You are bootstrapping a new web UI project: web-sw-cor24-plsw -- a browser-based
+PL/SW development environment (editor/compiler) running on the COR24 emulator
+via WASM.
+
+Follow these steps in order.
+
+## Step 1: Learn agentrail
+
+Run:
+```
+agentrail --help
+```
+Understand the commands available (init, status, next, begin, complete, plan,
+history, add, setup, abort).
+
+## Step 2: Study an existing web project with agentrail
+
+Look at sibling projects under ~/github/sw-vibe-coding/ and ~/github/sw-embed/
+that have `.agentrail/` directories. Good references:
+
+- ~/github/sw-embed/web-sw-cor24-pcode/ (closest match -- COR24 web debugger)
+- ~/github/sw-vibe-coding/web-tml24c/ (Lisp REPL on COR24)
+- ~/github/sw-vibe-coding/web-tc24r/ (C compiler browser UI)
+
+From one of these (preferably web-sw-cor24-pcode), study:
+- CLAUDE.md -- the AgentRail Session Protocol and project structure
+- .agentrail/saga.toml -- saga config
+- .agentrail/plan.md -- the phased plan
+- .agentrail/steps/*/step.toml -- step configs (number, slug, description, role, task_type)
+- Cargo.toml -- dependencies (Yew 0.21, wasm-bindgen, web-sys, gloo, etc.)
+- index.html -- Trunk directives, Catppuccin Mocha theme, layout
+- scripts/ -- serve.sh, build-pages.sh patterns
+- src/ -- Yew Component architecture (Component trait, Msg enum, html! macro)
+- pages/ -- GitHub Pages output directory with .nojekyll
+- build.rs -- build metadata and pre-processing patterns
+
+Then create a CLAUDE.md for THIS project (~/github/sw-embed/web-sw-cor24-plsw/)
+that follows the same pattern. It must include:
+- The full AgentRail Session Protocol (6 steps: next, begin, work, commit, complete, stop)
+- Project description (browser-based PL/SW development environment on COR24)
+- Related projects (sw-cor24-plsw, sw-cor24-emulator, sw-cor24-assembler, etc.)
+- Build commands (trunk via scripts, clippy, fmt)
+- Available task types (rust-project-init, yew-component, wasm-build, etc.)
+- Edition 2024, never suppress warnings
+
+## Step 3: Understand the web UI tech stack
+
+From studying the reference projects, note the established patterns:
+- Rust edition 2024
+- Yew 0.21 with CSR (client-side rendering only, no server backend)
+- Trunk as the build tool (not webpack/Vite)
+- wasm-bindgen + web-sys for browser APIs
+- Path dependencies to sibling compiler/emulator repos (e.g., ../sw-cor24-plsw, ../sw-cor24-emulator)
+- Catppuccin Mocha dark theme
+- pages/ directory committed to git, deployed via GitHub Pages
+- scripts/serve.sh for dev, scripts/build-pages.sh for release
+- build.rs for compile-time pre-processing and metadata
+
+The live demo will be served from the pages/ directory via GitHub Pages at a
+URL like: https://softwarewrighter.github.io/web-sw-cor24-plsw/
+
+## Step 4: Read the base project research
+
+Read ~/github/sw-embed/sw-cor24-plsw/docs/research.txt thoroughly. This is the
+comprehensive design document for the PL/SW language. Key aspects:
+- PL/S-inspired systems programming language for COR24
+- Freestanding: no runtime requirement, direct OS service integration
+- PL/I-like syntax with DCL/DECLARE and level-based declarations
+- Transpiler approach: compiles to .s assembler (not .o object files)
+- AST-aware macro preprocessor (m4-like, not CPP-style)
+- Three levels of inline assembler escape hatch (asm! macro style)
+- 7-layer compiler pipeline
+- File types: .plsw source, .msw macro files
+- COR24 ISA constraints: no floats, chars and ints only
+- GEN blocks for register-level code generation
+- Macro invocation syntax: ?GETMAIN(...), ?ESTAE(...), etc.
+- Recovery/environment macros for exception-like handling
+- Mixed listing output showing expanded source
+
+Also read ~/github/sw-embed/sw-cor24-plsw/Cargo.toml and any other docs/ files
+to understand the current state of the base PL/SW project.
+
+## Step 5: Ask questions
+
+Before proceeding to documentation, ask me any questions you have about:
+- Scope of the web UI (full IDE? minimal editor + compile? visual debugger?)
+- Which PL/SW features to prioritize in the UI
+- Desired UI layout (editor + output? multi-panel with AST view? listing viewer?)
+- Whether the PL/SW compiler is ready to embed or needs stubbing
+- Integration approach with cor24-emulator (compile -> assemble -> run pipeline)
+- How to display the 7-layer pipeline stages in the UI
+- Macro expansion visualization preferences
+- Any preferences for the architecture
+
+## Step 6: Create documentation
+
+Based on everything you've learned, create these four documents in ./docs/:
+
+### docs/architecture.md
+High-level system architecture:
+- Component diagram (Yew components, PL/SW compiler pipeline, assembler, COR24 emulator)
+- Data flow (PL/SW source -> preprocess -> compile -> .s assembly -> assemble -> emulate -> output)
+- WASM build pipeline (Trunk -> wasm-bindgen -> pages/)
+- Path dependency structure to sibling repos
+- How the 7-layer compiler pipeline maps to UI views
+- Macro expansion visualization architecture
+
+### docs/prd.md
+Product requirements document:
+- Target user and use case
+- Core features (editor with PL/SW syntax highlighting, compilation, assembly listing, execution)
+- Non-functional requirements (performance, browser compatibility, offline)
+- What's in scope vs. out of scope for v1
+- Success criteria
+
+### docs/plan.md
+Implementation plan (phased, matching agentrail saga step pattern):
+- Phase 1: Scaffold Yew project, wire dependencies, basic Trunk build
+- Phase 2: Editor panel with PL/SW syntax highlighting
+- Phase 3: Compile and display assembly listing
+- Phase 4: Wire assembler + emulator for execution
+- Phase 5+: Additional features based on PRD (macro expansion view, debugger, etc.)
+- Each phase should map to 1-2 agentrail saga steps
+
+### docs/design.md
+Detailed UI/UX design:
+- Layout wireframe description (editor, listing, output panels)
+- Catppuccin Mocha theme integration
+- PL/SW syntax highlighting scheme (keywords, macros, GEN blocks, inline asm)
+- Macro expansion toggle/view design
+- Pipeline stage visualization
+- Component hierarchy (Yew Component tree)
+- Keyboard shortcuts for compile/run workflow
