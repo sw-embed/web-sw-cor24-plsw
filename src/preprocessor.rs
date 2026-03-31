@@ -130,9 +130,9 @@ fn parse_macro_defs(source: &str) -> Vec<MacroDef> {
     defs
 }
 
-/// Parse a macro invocation: `?NAME(PARAM=value, PARAM2=value2)`
-/// Returns (name, args_map) or None.
-fn parse_invocation(text: &str) -> Option<(String, HashMap<String, String>)> {
+/// Parse a macro invocation: `?NAME(PARAM=value, PARAM2=value2)` or
+/// positional `?NAME(value)`.  Returns (name, positional_args, named_args).
+fn parse_invocation(text: &str) -> Option<(String, Vec<String>, HashMap<String, String>)> {
     let trimmed = text.trim().trim_end_matches(';').trim();
     if !trimmed.starts_with('?') {
         return None;
@@ -143,30 +143,49 @@ fn parse_invocation(text: &str) -> Option<(String, HashMap<String, String>)> {
     let name = rest[..paren].trim().to_string();
     let args_str = rest[paren + 1..].trim_end_matches(')').trim();
 
-    let mut args = HashMap::new();
+    let mut named = HashMap::new();
+    let mut positional = Vec::new();
     if !args_str.is_empty() {
         for arg in args_str.split(',') {
             let arg = arg.trim();
             if let Some(eq) = arg.find('=') {
                 let key = arg[..eq].trim().to_string();
                 let val = arg[eq + 1..].trim().to_string();
-                args.insert(key, val);
+                named.insert(key, val);
+            } else {
+                positional.push(arg.to_string());
             }
         }
     }
 
-    Some((name, args))
+    Some((name, positional, named))
 }
 
-/// Expand a macro invocation given a definition and arguments.
-fn expand_macro(def: &MacroDef, args: &HashMap<String, String>) -> Vec<String> {
+/// Expand a macro invocation given a definition, positional args, and named args.
+/// Positional args are matched to params in declaration order; named args override.
+fn expand_macro(
+    def: &MacroDef,
+    positional: &[String],
+    named: &HashMap<String, String>,
+) -> Vec<String> {
+    // Build resolved args: positional first, then named overrides
+    let mut resolved: HashMap<&str, &str> = HashMap::new();
+    for (i, param) in def.params.iter().enumerate() {
+        if let Some(val) = positional.get(i) {
+            resolved.insert(param, val);
+        }
+    }
+    for (key, val) in named {
+        resolved.insert(key, val);
+    }
+
     def.gen_lines
         .iter()
         .map(|line| {
             let mut expanded = line.clone();
             for param in &def.params {
                 let placeholder = format!("{{{param}}}");
-                if let Some(val) = args.get(param) {
+                if let Some(val) = resolved.get(param.as_str()) {
                     expanded = expanded.replace(&placeholder, val);
                 }
             }
@@ -201,10 +220,10 @@ pub fn preprocess(source: &str, macro_sources: &[(String, String)]) -> Preproces
 
         // Check for ?MACRO(...) invocations
         if trimmed.starts_with('?') {
-            if let Some((name, args)) = parse_invocation(trimmed)
+            if let Some((name, positional, named)) = parse_invocation(trimmed)
                 && let Some(def) = macro_defs.get(&name)
             {
-                let expanded = expand_macro(def, &args);
+                let expanded = expand_macro(def, &positional, &named);
                 let exp_idx = expansions.len();
 
                 expansions.push(MacroExpansion {
@@ -266,16 +285,27 @@ END;
     }
 
     #[test]
-    fn test_expand_macro() {
+    fn test_expand_macro_named() {
         let def = MacroDef {
             name: "TEST".into(),
             params: vec!["X".into()],
             gen_lines: vec!["lc r0, {X}".into()],
         };
-        let mut args = HashMap::new();
-        args.insert("X".into(), "42".into());
-        let result = expand_macro(&def, &args);
+        let mut named = HashMap::new();
+        named.insert("X".into(), "42".into());
+        let result = expand_macro(&def, &[], &named);
         assert_eq!(result, vec!["lc r0, 42"]);
+    }
+
+    #[test]
+    fn test_expand_macro_positional() {
+        let def = MacroDef {
+            name: "TEST".into(),
+            params: vec!["CH".into()],
+            gen_lines: vec!["ld r0, {CH}".into()],
+        };
+        let result = expand_macro(&def, &["myvar".into()], &HashMap::new());
+        assert_eq!(result, vec!["ld r0, myvar"]);
     }
 
     #[test]
