@@ -1,12 +1,16 @@
 pub mod components;
 pub mod demos;
 pub mod pipeline;
+pub mod preprocessor;
 
-use components::{MacroEditor, MacroFile, SourceEditor, WizardSidebar, WizardStep};
+use components::{
+    MacroEditor, MacroExpansionView, MacroFile, SourceEditor, WizardSidebar, WizardStep,
+};
 use demos::DEMOS;
 use gloo::file::File;
 use gloo::file::callbacks::FileReader;
 use pipeline::CompileResult;
+use preprocessor::PreprocessResult;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlInputElement, HtmlSelectElement};
 use yew::prelude::*;
@@ -75,6 +79,9 @@ pub fn app() -> Html {
             .collect::<Vec<_>>()
     });
 
+    // Preprocessor result state
+    let preprocess_result = use_state(|| None::<PreprocessResult>);
+
     // Compilation result state
     let compile_result = use_state(|| None::<CompileResult>);
     let compiling = use_state(|| false);
@@ -89,6 +96,7 @@ pub fn app() -> Html {
         let current_step = current_step.clone();
         let macro_files = macro_files.clone();
         let compile_result = compile_result.clone();
+        let preprocess_result = preprocess_result.clone();
         Callback::from(move |e: Event| {
             if let Some(target) = e.target()
                 && let Some(select) = target.dyn_ref::<HtmlSelectElement>()
@@ -105,6 +113,7 @@ pub fn app() -> Html {
                 selected_demo.set(Some(idx));
                 current_step.set(WizardStep::Source);
                 compile_result.set(None);
+                preprocess_result.set(None);
                 // Scroll notebook to top
                 if let Some(window) = web_sys::window()
                     && let Some(document) = window.document()
@@ -177,11 +186,20 @@ pub fn app() -> Html {
         let macro_files = macro_files.clone();
         let compile_result = compile_result.clone();
         let compiling = compiling.clone();
+        let preprocess_result = preprocess_result.clone();
         Callback::from(move |()| {
             let current = *current_step;
             if let Some(next) = current.next() {
                 // Trigger compilation when advancing to Preprocess (skips to Compile)
                 if next == WizardStep::Preprocess && !*compiling {
+                    // Run preprocessor first (synchronous, fast)
+                    let macro_pairs: Vec<(String, String)> = macro_files
+                        .iter()
+                        .map(|m| (m.name.clone(), m.source.clone()))
+                        .collect();
+                    let pp_result = preprocessor::preprocess(&source, &macro_pairs);
+                    preprocess_result.set(Some(pp_result));
+
                     compiling.set(true);
                     let src = (*source).clone();
                     let macros: Vec<(String, String)> = macro_files
@@ -393,7 +411,30 @@ pub fn app() -> Html {
                     }
 
                     if *current_step >= WizardStep::Preprocess {
+                        // Macro expansion view
                         <div class="notebook-cell" id="cell-preprocess">
+                            <div class="cell-header">
+                                <span>{"Preprocessed Source"}</span>
+                                if let Some(ref pp) = *preprocess_result {
+                                    <span class="cell-header-stats">
+                                        {format!("{} expansion{}", pp.expansions.len(),
+                                            if pp.expansions.len() == 1 { "" } else { "s" })}
+                                    </span>
+                                }
+                            </div>
+                            <div class="cell-content">
+                                if let Some(ref pp) = *preprocess_result {
+                                    <MacroExpansionView result={pp.clone()} />
+                                } else {
+                                    <div class="notebook-placeholder">
+                                        <span>{"Click Preprocess to expand macros"}</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
+                        // Compiler boot output
+                        <div class="notebook-cell" id="cell-boot">
                             <div class="cell-header">
                                 <span>{"Compiler Boot (Self-Tests)"}</span>
                                 if let Some(ref result) = *compile_result {
@@ -412,7 +453,7 @@ pub fn app() -> Html {
                                     <pre class="pipeline-output">{&result.boot_output}</pre>
                                 } else {
                                     <div class="notebook-placeholder">
-                                        <span>{"Click Preprocess to run the compiler"}</span>
+                                        <span>{"Waiting for compiler boot..."}</span>
                                     </div>
                                 }
                             </div>

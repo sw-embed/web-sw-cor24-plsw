@@ -1,6 +1,6 @@
 number = 5
 slug = "005-compiler-integration"
-status = "in-progress"
+status = "completed"
 description = """
 Wire the PL/SW compiler binary to run on the COR24 emulator.
 
@@ -8,3 +8,4 @@ Wire the PL/SW compiler binary to run on the COR24 emulator.
 role = "production"
 context_files = []
 created_at = "2026-03-30T20:17:34"
+completed_at = "2026-03-30T20:43:00"

@@ -432,6 +432,120 @@
     font-style: italic;
 }
 
+/* --- Macro expansion view --- */
+.macro-expansion-view {
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-x: auto;
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+.expansion-line {
+    display: flex;
+    align-items: baseline;
+    padding: 0 12px;
+    min-height: 20px;
+}
+
+.expansion-line-num {
+    width: 36px;
+    min-width: 36px;
+    text-align: right;
+    padding-right: 10px;
+    color: var(--overlay0);
+    font-size: 0.85em;
+    user-select: none;
+}
+
+.expansion-line-text {
+    flex: 1;
+    white-space: pre;
+    color: var(--text);
+}
+
+.expansion-include .expansion-line-text {
+    color: var(--sky);
+    font-weight: bold;
+}
+
+.expansion-block {
+    border-left: 2px solid transparent;
+}
+
+.expansion-block:hover {
+    border-left-color: var(--yellow);
+}
+
+.expansion-invocation {
+    display: flex;
+    align-items: baseline;
+    padding: 1px 12px;
+    cursor: pointer;
+    background: rgba(249, 226, 175, 0.05);
+    border-radius: 2px;
+    transition: background 0.15s;
+}
+
+.expansion-invocation:hover {
+    background: rgba(249, 226, 175, 0.1);
+}
+
+.expansion-toggle {
+    width: 16px;
+    min-width: 16px;
+    text-align: center;
+    font-size: 0.7em;
+    color: var(--yellow);
+    user-select: none;
+}
+
+.expansion-badge {
+    font-size: 0.75em;
+    color: var(--overlay1);
+    padding: 1px 6px;
+    background: var(--surface0);
+    border-radius: 3px;
+    margin-left: 8px;
+    white-space: nowrap;
+}
+
+.expansion-content {
+    margin-left: 46px;
+    padding: 4px 0;
+    border-left: 2px solid var(--yellow);
+    background: rgba(249, 226, 175, 0.03);
+}
+
+.expansion-gen-line {
+    display: flex;
+    align-items: baseline;
+    padding: 0 8px;
+    min-height: 20px;
+}
+
+.expansion-gutter {
+    width: 16px;
+    min-width: 16px;
+    text-align: center;
+    color: var(--surface2);
+    user-select: none;
+}
+
+.expansion-gen-text {
+    flex: 1;
+    white-space: pre;
+}
+
+.expansion-no-macros {
+    padding: 20px;
+    text-align: center;
+    color: var(--overlay1);
+    font-size: 0.9em;
+    font-style: italic;
+}
+
 /* --- Pipeline output --- */
 .pipeline-output {
     margin: 0;
