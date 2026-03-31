@@ -1,7 +1,44 @@
+use cor24_emulator::{Assembler, EmulatorCore, StopReason};
 use yew::prelude::*;
+
+/// Smoke test: assemble a trivial COR24 program, run it, verify register value.
+fn emulator_smoke_test() -> Result<String, String> {
+    let mut asm = Assembler::new();
+    let result = asm.assemble("  lc r0, 42\nhalt:\n  bra halt\n");
+    if !result.errors.is_empty() {
+        return Err(format!("Assembly errors: {:?}", result.errors));
+    }
+
+    let mut emu = EmulatorCore::new();
+    emu.load_program(0, &result.bytes);
+    emu.set_pc(0);
+    emu.resume();
+    let batch = emu.run_batch(100);
+
+    if !matches!(batch.reason, StopReason::Halted) {
+        return Err(format!("Expected Halted, got {:?}", batch.reason));
+    }
+
+    let r0 = emu.get_reg(0);
+    if r0 == 42 {
+        Ok(format!(
+            "WASM smoke test PASSED: r0={r0}, {} instructions, halted OK",
+            batch.instructions_run
+        ))
+    } else {
+        Err(format!("Expected r0=42, got r0={r0}"))
+    }
+}
 
 #[function_component(App)]
 pub fn app() -> Html {
+    use_effect_with((), |_| {
+        match emulator_smoke_test() {
+            Ok(msg) => web_sys::console::log_1(&msg.into()),
+            Err(msg) => web_sys::console::error_1(&msg.into()),
+        }
+    });
+
     html! {
         <>
             // GitHub corner
