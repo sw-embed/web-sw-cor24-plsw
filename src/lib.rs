@@ -1,5 +1,15 @@
-use cor24_emulator::{Assembler, EmulatorCore, StopReason};
+pub mod components;
+pub mod demos;
+
+use components::{SourceEditor, WizardSidebar, WizardStep};
+use demos::DEMOS;
+use gloo::file::File;
+use gloo::file::callbacks::FileReader;
+use wasm_bindgen::JsCast;
+use web_sys::{HtmlInputElement, HtmlSelectElement};
 use yew::prelude::*;
+
+use cor24_emulator::{Assembler, EmulatorCore, StopReason};
 
 /// Smoke test: assemble a trivial COR24 program, run it, verify register value.
 fn emulator_smoke_test() -> Result<String, String> {
@@ -32,12 +42,120 @@ fn emulator_smoke_test() -> Result<String, String> {
 
 #[function_component(App)]
 pub fn app() -> Html {
-    use_effect_with((), |_| {
-        match emulator_smoke_test() {
-            Ok(msg) => web_sys::console::log_1(&msg.into()),
-            Err(msg) => web_sys::console::error_1(&msg.into()),
-        }
+    // Run emulator smoke test on mount
+    use_effect_with((), |_| match emulator_smoke_test() {
+        Ok(msg) => web_sys::console::log_1(&msg.into()),
+        Err(msg) => web_sys::console::error_1(&msg.into()),
     });
+
+    // Source editor state
+    let source = use_state(|| DEMOS[0].source.to_string());
+    let selected_demo = use_state(|| Some(0usize));
+    let current_step = use_state(|| WizardStep::Source);
+
+    // File reader state (must keep alive during async read)
+    let _file_reader = use_state(|| None::<FileReader>);
+
+    // Demo selection handler
+    let on_demo_select = {
+        let source = source.clone();
+        let selected_demo = selected_demo.clone();
+        let current_step = current_step.clone();
+        Callback::from(move |e: Event| {
+            if let Some(target) = e.target()
+                && let Some(select) = target.dyn_ref::<HtmlSelectElement>()
+            {
+                let idx: usize = select.value().parse().unwrap_or(0);
+                source.set(DEMOS[idx].source.to_string());
+                selected_demo.set(Some(idx));
+                current_step.set(WizardStep::Source);
+                // Scroll notebook to top
+                if let Some(window) = web_sys::window()
+                    && let Some(document) = window.document()
+                    && let Some(container) = document.get_element_by_id("notebook-scroll")
+                {
+                    container.set_scroll_top(0);
+                }
+            }
+        })
+    };
+
+    // Source change handler
+    let on_source_change = {
+        let source = source.clone();
+        let selected_demo = selected_demo.clone();
+        Callback::from(move |new_source: String| {
+            source.set(new_source);
+            selected_demo.set(None);
+        })
+    };
+
+    // File upload handler
+    let on_file_upload = {
+        let source = source.clone();
+        let selected_demo = selected_demo.clone();
+        let current_step = current_step.clone();
+        let file_reader = _file_reader.clone();
+        Callback::from(move |e: Event| {
+            if let Some(target) = e.target()
+                && let Some(input) = target.dyn_ref::<HtmlInputElement>()
+                && let Some(files) = input.files()
+                && let Some(file) = files.get(0)
+            {
+                let file = File::from(file);
+                let source = source.clone();
+                let selected_demo = selected_demo.clone();
+                let current_step = current_step.clone();
+                let reader = gloo::file::callbacks::read_as_text(&file, move |result| {
+                    if let Ok(text) = result {
+                        source.set(text);
+                        selected_demo.set(None);
+                        current_step.set(WizardStep::Source);
+                    }
+                });
+                file_reader.set(Some(reader));
+            }
+        })
+    };
+
+    // Wizard step click
+    let on_step_click = {
+        let current_step = current_step.clone();
+        Callback::from(move |step: WizardStep| {
+            if step <= *current_step {
+                let cell_id = step.cell_id().to_string();
+                if let Some(window) = web_sys::window()
+                    && let Some(document) = window.document()
+                    && let Some(element) = document.get_element_by_id(&cell_id)
+                {
+                    element.scroll_into_view();
+                }
+            }
+        })
+    };
+
+    // Wizard advance
+    let on_advance = {
+        let current_step = current_step.clone();
+        Callback::from(move |()| {
+            let current = *current_step;
+            if let Some(next) = current.next() {
+                current_step.set(next);
+                let scroll_to = next.cell_id().to_string();
+                gloo::timers::callback::Timeout::new(100, move || {
+                    if let Some(window) = web_sys::window()
+                        && let Some(document) = window.document()
+                        && let Some(element) = document.get_element_by_id(&scroll_to)
+                    {
+                        element.scroll_into_view();
+                    }
+                })
+                .forget();
+            }
+        })
+    };
+
+    let example_name = selected_demo.as_ref().map(|&idx| DEMOS[idx].name);
 
     html! {
         <>
@@ -65,9 +183,130 @@ pub fn app() -> Html {
                 <h1>{"PL/SW"}</h1>
                 <span>{"COR24 Dev"}</span>
             </header>
-            // Main app placeholder
-            <div id="app" style="flex:1; display:flex; align-items:center; justify-content:center;">
-                <span style="color:var(--overlay1); font-size:1.2em;">{"Loading\u{2026}"}</span>
+            // Main 3-column layout
+            <div id="app" class="plsw-wizard-layout">
+                // Column 1: Sidebar
+                <div class="wizard-sidebar">
+                    <div class="sidebar-section">
+                        <span class="sidebar-section-label">{"Demo"}</span>
+                        <select class="sidebar-select"
+                            onchange={on_demo_select}
+                            value={selected_demo.map_or(String::new(), |i| i.to_string())}>
+                            { for DEMOS.iter().enumerate().map(|(i, demo)| {
+                                html! {
+                                    <option value={i.to_string()}
+                                        selected={*selected_demo == Some(i)}>
+                                        {demo.name}
+                                    </option>
+                                }
+                            })}
+                        </select>
+                    </div>
+
+                    <div class="sidebar-section">
+                        <span class="sidebar-section-label">{"File"}</span>
+                        <input type="file" id="file-upload" class="file-upload-input"
+                            accept=".plsw,.msw,.txt" onchange={on_file_upload} />
+                        <label for="file-upload" class="file-upload-label">{"Upload .plsw"}</label>
+                    </div>
+
+                    <div class="sidebar-spacer"></div>
+
+                    <a href="https://github.com/softwarewrighter/web-sw-cor24-plsw"
+                       target="_blank" rel="noopener" class="sidebar-link">
+                        {"GitHub"}<span class="ext-icon">{" \u{2197}"}</span>
+                    </a>
+                </div>
+
+                // Column 2: Wizard steps
+                <WizardSidebar
+                    current_step={*current_step}
+                    {on_step_click}
+                    {on_advance}
+                    has_source={!source.is_empty()}
+                />
+
+                // Column 3: Notebook cells
+                <div class="notebook-cells" id="notebook-scroll">
+                    // Cell: Source editor (always visible)
+                    <SourceEditor
+                        source={(*source).clone()}
+                        on_change={on_source_change}
+                        title="PL/SW Source"
+                        example_name={example_name.map(AttrValue::from)}
+                    />
+
+                    // Placeholder cells for future steps
+                    if *current_step >= WizardStep::Macros {
+                        <div class="notebook-cell" id="cell-macros">
+                            <div class="cell-header">
+                                <span>{"Macro Files (.msw)"}</span>
+                            </div>
+                            <div class="cell-content">
+                                <div class="notebook-placeholder">
+                                    <span>{"Macro editor -- coming soon"}</span>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    if *current_step >= WizardStep::Preprocess {
+                        <div class="notebook-cell" id="cell-preprocess">
+                            <div class="cell-header">
+                                <span>{"Preprocessed Output"}</span>
+                            </div>
+                            <div class="cell-content">
+                                <div class="notebook-placeholder">
+                                    <span>{"Preprocessor -- coming soon"}</span>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    if *current_step >= WizardStep::Compile {
+                        <div class="notebook-cell" id="cell-compile">
+                            <div class="cell-header">
+                                <span>{"COR24 Assembly Output"}</span>
+                            </div>
+                            <div class="cell-content">
+                                <div class="notebook-placeholder">
+                                    <span>{"Compiler -- coming soon"}</span>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    if *current_step >= WizardStep::Assemble {
+                        <div class="notebook-cell" id="cell-assemble">
+                            <div class="cell-header">
+                                <span>{"Assembly Listing"}</span>
+                            </div>
+                            <div class="cell-content">
+                                <div class="notebook-placeholder">
+                                    <span>{"Assembler -- coming soon"}</span>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    if *current_step >= WizardStep::Run {
+                        <div class="notebook-cell" id="cell-run">
+                            <div class="cell-header">
+                                <span>{"Execution / Debugger"}</span>
+                            </div>
+                            <div class="cell-content">
+                                <div class="notebook-placeholder">
+                                    <span>{"Debugger -- coming soon"}</span>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    // Pipeline note
+                    <div class="pipeline-note">
+                        <em>{"Pipeline: .plsw + .msw \u{2192} Preprocess \u{2192} Compile (on COR24) \u{2192} .s \u{2192} Assemble \u{2192} Run"}</em>
+                    </div>
+                </div>
             </div>
             // Footer
             <footer>
