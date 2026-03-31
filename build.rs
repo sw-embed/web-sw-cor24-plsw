@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::process::Command;
 
 fn main() {
@@ -24,4 +25,17 @@ fn main() {
     println!("cargo:rustc-env=BUILD_SHA={sha}");
     println!("cargo:rustc-env=BUILD_HOST={host}");
     println!("cargo:rustc-env=BUILD_TIMESTAMP={timestamp}");
+
+    // Embed PL/SW compiler assembly source from sibling project
+    let compiler_path = Path::new("../sw-cor24-plsw/build/plsw.s");
+    if compiler_path.exists() {
+        println!(
+            "cargo:rustc-env=PLSW_COMPILER_PATH={}",
+            compiler_path.canonicalize().unwrap().display()
+        );
+    } else {
+        println!("cargo:warning=PL/SW compiler not found at ../sw-cor24-plsw/build/plsw.s");
+        println!("cargo:warning=Compiler pipeline will be unavailable");
+    }
+    println!("cargo:rerun-if-changed=../sw-cor24-plsw/build/plsw.s");
 }

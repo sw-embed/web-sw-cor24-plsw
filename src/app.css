@@ -432,6 +432,82 @@
     font-style: italic;
 }
 
+/* --- Pipeline output --- */
+.pipeline-output {
+    margin: 0;
+    padding: 12px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
+    background: var(--mantle);
+    overflow-x: auto;
+    white-space: pre;
+    max-height: 40vh;
+    overflow-y: auto;
+}
+
+.compile-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 24px;
+    color: var(--overlay1);
+    font-size: 0.95em;
+}
+
+.compile-spinner {
+    font-size: 1.2em;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.compile-error {
+    padding: 12px;
+    background: rgba(243, 139, 168, 0.1);
+    border-left: 3px solid var(--red);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+.error-label {
+    color: var(--red);
+    font-weight: bold;
+}
+
+.compile-note {
+    padding: 8px 12px;
+    color: var(--overlay0);
+    font-size: 0.8em;
+    border-top: 1px solid var(--surface0);
+}
+
+.cell-header-stats {
+    font-size: 0.75em;
+    color: var(--overlay1);
+    font-weight: normal;
+}
+
+.cell-status-ok {
+    font-size: 0.85em;
+    color: var(--green);
+    font-weight: bold;
+}
+
+.cell-status-error {
+    font-size: 0.85em;
+    color: var(--red);
+    font-weight: bold;
+}
+
 /* --- Notebook placeholder --- */
 .notebook-placeholder {
     display: flex;

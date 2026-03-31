@@ -1,10 +1,12 @@
 pub mod components;
 pub mod demos;
+pub mod pipeline;
 
 use components::{MacroEditor, MacroFile, SourceEditor, WizardSidebar, WizardStep};
 use demos::DEMOS;
 use gloo::file::File;
 use gloo::file::callbacks::FileReader;
+use pipeline::CompileResult;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlInputElement, HtmlSelectElement};
 use yew::prelude::*;
@@ -40,6 +42,17 @@ fn emulator_smoke_test() -> Result<String, String> {
     }
 }
 
+/// Format a large number with K/M suffix for display.
+fn format_count(n: u64) -> String {
+    if n >= 1_000_000 {
+        format!("{:.1}M", n as f64 / 1_000_000.0)
+    } else if n >= 1_000 {
+        format!("{:.1}K", n as f64 / 1_000.0)
+    } else {
+        n.to_string()
+    }
+}
+
 #[function_component(App)]
 pub fn app() -> Html {
     // Run emulator smoke test on mount
@@ -62,6 +75,10 @@ pub fn app() -> Html {
             .collect::<Vec<_>>()
     });
 
+    // Compilation result state
+    let compile_result = use_state(|| None::<CompileResult>);
+    let compiling = use_state(|| false);
+
     // File reader state (must keep alive during async read)
     let _file_reader = use_state(|| None::<FileReader>);
 
@@ -71,6 +88,7 @@ pub fn app() -> Html {
         let selected_demo = selected_demo.clone();
         let current_step = current_step.clone();
         let macro_files = macro_files.clone();
+        let compile_result = compile_result.clone();
         Callback::from(move |e: Event| {
             if let Some(target) = e.target()
                 && let Some(select) = target.dyn_ref::<HtmlSelectElement>()
@@ -86,6 +104,7 @@ pub fn app() -> Html {
                 );
                 selected_demo.set(Some(idx));
                 current_step.set(WizardStep::Source);
+                compile_result.set(None);
                 // Scroll notebook to top
                 if let Some(window) = web_sys::window()
                     && let Some(document) = window.document()
@@ -154,9 +173,52 @@ pub fn app() -> Html {
     // Wizard advance
     let on_advance = {
         let current_step = current_step.clone();
+        let source = source.clone();
+        let macro_files = macro_files.clone();
+        let compile_result = compile_result.clone();
+        let compiling = compiling.clone();
         Callback::from(move |()| {
             let current = *current_step;
             if let Some(next) = current.next() {
+                // Trigger compilation when advancing to Preprocess (skips to Compile)
+                if next == WizardStep::Preprocess && !*compiling {
+                    compiling.set(true);
+                    let src = (*source).clone();
+                    let macros: Vec<(String, String)> = macro_files
+                        .iter()
+                        .map(|m| (m.name.clone(), m.source.clone()))
+                        .collect();
+
+                    let compile_result = compile_result.clone();
+                    let inner_step = current_step.clone();
+                    let compiling = compiling.clone();
+
+                    // Run compilation asynchronously via timeout to allow UI to update
+                    gloo::timers::callback::Timeout::new(50, move || {
+                        let result = pipeline::run_compiler(&src, &macros);
+                        compile_result.set(Some(result));
+                        compiling.set(false);
+                        // Advance to Compile step (skip Preprocess since we show both)
+                        inner_step.set(WizardStep::Compile);
+
+                        // Scroll to output
+                        gloo::timers::callback::Timeout::new(100, || {
+                            if let Some(window) = web_sys::window()
+                                && let Some(document) = window.document()
+                                && let Some(element) = document.get_element_by_id("cell-compile")
+                            {
+                                element.scroll_into_view();
+                            }
+                        })
+                        .forget();
+                    })
+                    .forget();
+
+                    // Show preprocess cell immediately
+                    current_step.set(WizardStep::Preprocess);
+                    return;
+                }
+
                 current_step.set(next);
                 let scroll_to = next.cell_id().to_string();
                 gloo::timers::callback::Timeout::new(100, move || {
@@ -333,12 +395,26 @@ pub fn app() -> Html {
                     if *current_step >= WizardStep::Preprocess {
                         <div class="notebook-cell" id="cell-preprocess">
                             <div class="cell-header">
-                                <span>{"Preprocessed Output"}</span>
+                                <span>{"Compiler Boot (Self-Tests)"}</span>
+                                if let Some(ref result) = *compile_result {
+                                    <span class="cell-header-stats">
+                                        {format!("{} instructions", format_count(result.instructions))}
+                                    </span>
+                                }
                             </div>
                             <div class="cell-content">
-                                <div class="notebook-placeholder">
-                                    <span>{"Preprocessor -- coming soon"}</span>
-                                </div>
+                                if *compiling {
+                                    <div class="compile-status">
+                                        <span class="compile-spinner">{"\u{23F3}"}</span>
+                                        <span>{"Running PL/SW compiler on COR24 emulator..."}</span>
+                                    </div>
+                                } else if let Some(ref result) = *compile_result {
+                                    <pre class="pipeline-output">{&result.boot_output}</pre>
+                                } else {
+                                    <div class="notebook-placeholder">
+                                        <span>{"Click Preprocess to run the compiler"}</span>
+                                    </div>
+                                }
                             </div>
                         </div>
                     }
@@ -346,12 +422,40 @@ pub fn app() -> Html {
                     if *current_step >= WizardStep::Compile {
                         <div class="notebook-cell" id="cell-compile">
                             <div class="cell-header">
-                                <span>{"COR24 Assembly Output"}</span>
+                                <span>{"Compiler Output (Lexer Tokens)"}</span>
+                                if let Some(ref result) = *compile_result {
+                                    if result.error.is_some() {
+                                        <span class="cell-status-error">{"\u{2717} Error"}</span>
+                                    } else {
+                                        <span class="cell-status-ok">{"\u{2713} OK"}</span>
+                                    }
+                                }
                             </div>
                             <div class="cell-content">
-                                <div class="notebook-placeholder">
-                                    <span>{"Compiler -- coming soon"}</span>
-                                </div>
+                                if let Some(ref result) = *compile_result {
+                                    if let Some(ref err) = result.error {
+                                        <div class="compile-error">
+                                            <span class="error-label">{"Error: "}</span>
+                                            <span>{err}</span>
+                                        </div>
+                                    }
+                                    if !result.compiler_output.is_empty() {
+                                        <pre class="pipeline-output">{&result.compiler_output}</pre>
+                                    } else if result.error.is_none() {
+                                        <div class="compile-status">
+                                            <span>{"No token output (source may be empty)"}</span>
+                                        </div>
+                                    }
+                                    <div class="compile-note">
+                                        <em>{"Note: The PL/SW compiler currently implements the lexer stage. \
+                                              Full compilation (parser \u{2192} codegen \u{2192} assembly output) \
+                                              is under development in the sw-cor24-plsw project."}</em>
+                                    </div>
+                                } else {
+                                    <div class="notebook-placeholder">
+                                        <span>{"Waiting for compilation..."}</span>
+                                    </div>
+                                }
                             </div>
                         </div>
                     }
