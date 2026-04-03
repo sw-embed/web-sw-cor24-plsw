@@ -1,2 +1,7 @@
 /target
 /dist
+/.agentrail
+*.wasm
+!pages/*.wasm
+*.o
+.DS_Store
