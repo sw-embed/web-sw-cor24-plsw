@@ -436,7 +436,7 @@ pub fn app() -> Html {
                         // Compiler boot output
                         <div class="notebook-cell" id="cell-boot">
                             <div class="cell-header">
-                                <span>{"Compiler Boot (Self-Tests)"}</span>
+                                <span>{"Compiler Boot (16 Self-Test Suites)"}</span>
                                 if let Some(ref result) = *compile_result {
                                     <span class="cell-header-stats">
                                         {format!("{} instructions", format_count(result.instructions))}
@@ -463,7 +463,7 @@ pub fn app() -> Html {
                     if *current_step >= WizardStep::Compile {
                         <div class="notebook-cell" id="cell-compile">
                             <div class="cell-header">
-                                <span>{"Compiler Output (Lexer Tokens)"}</span>
+                                <span>{"Compiler Output (Tokenizer REPL)"}</span>
                                 if let Some(ref result) = *compile_result {
                                     if result.error.is_some() {
                                         <span class="cell-status-error">{"\u{2717} Error"}</span>
@@ -488,9 +488,9 @@ pub fn app() -> Html {
                                         </div>
                                     }
                                     <div class="compile-note">
-                                        <em>{"Note: The PL/SW compiler currently implements the lexer stage. \
-                                              Full compilation (parser \u{2192} codegen \u{2192} assembly output) \
-                                              is under development in the sw-cor24-plsw project."}</em>
+                                        <em>{"Note: The PL/SW compiler has a complete parser, type system, symbol table, \
+                                              storage layout, and expression codegen. The REPL currently exposes the \
+                                              tokenizer; full end-to-end compilation is under development."}</em>
                                     </div>
                                 } else {
                                     <div class="notebook-placeholder">

@@ -102,6 +102,117 @@ END ASMTEST;
         macros: &[],
     },
     Demo {
+        name: "Procedures",
+        description: "Procedures with params, returns, and options",
+        source: r#"/* Procedures -- parameters, returns, and options */
+
+SQUARE: PROC(X INT(24)) RETURNS(INT(24));
+  RETURN(X * X);
+END SQUARE;
+
+ABS: PROC(X INT(24)) RETURNS(INT(24));
+  IF X < 0 THEN RETURN(-X);
+  RETURN(X);
+END ABS;
+
+MAIN: PROC OPTIONS(FREESTANDING);
+  DCL 1 A INT(24) INIT(7);
+  DCL 1 B INT(24);
+  DCL 1 UART_TX PTR INIT(0xFF0102);
+
+  B = CALL SQUARE(A);   /* B = 49 */
+
+  UART_TX->BYTE = B;
+  RETURN;
+END MAIN;
+"#,
+        macros: &[],
+    },
+    Demo {
+        name: "Control Flow",
+        description: "IF/ELSE, DO WHILE, DO counted loops",
+        source: r#"/* Control flow demo */
+
+MAIN: PROC OPTIONS(FREESTANDING);
+  DCL 1 UART_TX PTR INIT(0xFF0102);
+  DCL 1 N INT(24) INIT(10);
+  DCL 1 SUM INT(24) INIT(0);
+  DCL 1 I INT(24);
+
+  /* Counted loop: sum 1..N */
+  DO I = 1 TO N;
+    SUM = SUM + I;
+  END;
+
+  /* IF/ELSE: check result */
+  IF SUM = 55 THEN DO;
+    UART_TX->BYTE = 'Y';  /* correct */
+  END;
+  ELSE DO;
+    UART_TX->BYTE = 'N';  /* wrong */
+  END;
+
+  /* DO WHILE countdown */
+  DO WHILE (N > 0);
+    UART_TX->BYTE = N + 48;  /* ASCII digit */
+    N = N - 1;
+  END;
+
+  RETURN;
+END MAIN;
+"#,
+        macros: &[],
+    },
+    Demo {
+        name: "Records & Pointers",
+        description: "Record types and pointer access",
+        source: r#"/* Records and pointers */
+
+MAIN: PROC OPTIONS(FREESTANDING);
+  DCL 1 POINT,
+      2 X INT(24),
+      2 Y INT(24);
+  DCL 1 UART PTR INIT(0xFF0100);
+
+  POINT.X = 10;
+  POINT.Y = 20;
+
+  /* Pointer field access */
+  UART->BYTE = POINT.X + POINT.Y;
+
+  RETURN;
+END MAIN;
+"#,
+        macros: &[],
+    },
+    Demo {
+        name: "Typed Declarations",
+        description: "INT, BYTE, CHAR, PTR, and arrays",
+        source: r#"/* Typed declarations demo */
+
+MAIN: PROC OPTIONS(FREESTANDING);
+  DCL 1 COUNT INT(24) INIT(0);
+  DCL 1 FLAGS BYTE INIT(0xAA);
+  DCL 1 LETTER CHAR INIT('Z');
+  DCL 1 BUFFER(16) BYTE;
+  DCL 1 GPIO PTR INIT(0xFF0000);
+
+  /* Byte-width operations */
+  FLAGS = FLAGS ^ 0xFF;
+  GPIO->BYTE = FLAGS;
+
+  /* Array fill */
+  DCL 1 I INT(24);
+  DO I = 0 TO 15;
+    BUFFER(I) = I + 65;  /* 'A'..'P' */
+  END;
+
+  RETURN;
+END MAIN;
+"#,
+        macros: &[],
+    },
+    Demo {
         name: "Macro Usage",
         description: "Demonstrate ?MACRO invocation",
         source: r#"/* Macro usage demo */
