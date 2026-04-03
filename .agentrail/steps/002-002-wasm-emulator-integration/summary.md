@@ -1,0 +1,1 @@
+Wired cor24-emulator into WASM build. Added smoke test in lib.rs that assembles 'lc r0,42 / bra halt', runs on EmulatorCore, and verifies r0=42. Confirmed via Playwright browser console: test passes. Clippy clean, trunk build succeeds.

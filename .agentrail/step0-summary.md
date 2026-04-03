@@ -1,0 +1,1 @@
+Project bootstrapped: created CLAUDE.md, docs/architecture.md, docs/prd.md, docs/plan.md, docs/design.md. Studied reference projects (web-sw-cor24-pcode, cor24-rs, web-tml24c, web-tc24r) and PL/SW language research.

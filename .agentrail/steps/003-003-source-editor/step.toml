@@ -1,0 +1,11 @@
+number = 3
+slug = "003-source-editor"
+status = "completed"
+description = """
+Build the wizard sidebar + notebook cell layout with PL/SW source editor.
+
+- ..."""
+role = "production"
+context_files = []
+created_at = "2026-03-30T19:10:16"
+completed_at = "2026-03-30T19:23:21"
