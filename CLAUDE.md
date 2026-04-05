@@ -68,10 +68,11 @@ rust-project-init, yew-component, wasm-build, rust-clippy-fix, pre-commit, rust-
 - 3-column grid layout: sidebar, wizard steps, notebook cells (scrolling)
 - Two tabs: Editor (wizard-driven workflow) and Pipeline (7-stage viewer)
 - PL/SW compiler binary (C, pre-built) runs on COR24 emulator in WASM
+- Compiler 'c' mode: send source via UART, receive .s assembly output
 - `build.rs` embeds compiler binary + build metadata
 - Catppuccin Mocha dark theme
 - `pages/` directory committed to git, deployed via GitHub Pages
-- Pipeline: .plsw + .msw -> preprocess -> compile (on emulator) -> .s -> assemble (Rust) -> run (on emulator)
+- Pipeline: .plsw + .msw -> preprocess -> compile via 'c' mode (on emulator) -> .s -> assemble (Rust) -> run (on emulator)
 
 ## Key Conventions
 

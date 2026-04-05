@@ -9,7 +9,7 @@ use components::{
 use demos::DEMOS;
 use gloo::file::File;
 use gloo::file::callbacks::FileReader;
-use pipeline::CompileResult;
+use pipeline::{CompileResult, RunResult};
 use preprocessor::PreprocessResult;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlInputElement, HtmlSelectElement};
@@ -84,6 +84,7 @@ pub fn app() -> Html {
 
     // Compilation result state
     let compile_result = use_state(|| None::<CompileResult>);
+    let run_result = use_state(|| None::<RunResult>);
     let compiling = use_state(|| false);
 
     // File reader state (must keep alive during async read)
@@ -96,6 +97,7 @@ pub fn app() -> Html {
         let current_step = current_step.clone();
         let macro_files = macro_files.clone();
         let compile_result = compile_result.clone();
+        let run_result = run_result.clone();
         let preprocess_result = preprocess_result.clone();
         Callback::from(move |e: Event| {
             if let Some(target) = e.target()
@@ -113,6 +115,7 @@ pub fn app() -> Html {
                 selected_demo.set(Some(idx));
                 current_step.set(WizardStep::Source);
                 compile_result.set(None);
+                run_result.set(None);
                 preprocess_result.set(None);
                 // Scroll notebook to top
                 if let Some(window) = web_sys::window()
@@ -185,12 +188,13 @@ pub fn app() -> Html {
         let source = source.clone();
         let macro_files = macro_files.clone();
         let compile_result = compile_result.clone();
+        let run_result = run_result.clone();
         let compiling = compiling.clone();
         let preprocess_result = preprocess_result.clone();
         Callback::from(move |()| {
             let current = *current_step;
             if let Some(next) = current.next() {
-                // Trigger compilation when advancing to Preprocess (skips to Compile)
+                // Trigger full pipeline when advancing to Preprocess
                 if next == WizardStep::Preprocess && !*compiling {
                     // Run preprocessor first (synchronous, fast)
                     let macro_pairs: Vec<(String, String)> = macro_files
@@ -208,22 +212,35 @@ pub fn app() -> Html {
                         .collect();
 
                     let compile_result = compile_result.clone();
+                    let run_result = run_result.clone();
                     let inner_step = current_step.clone();
                     let compiling = compiling.clone();
 
                     // Run compilation asynchronously via timeout to allow UI to update
                     gloo::timers::callback::Timeout::new(50, move || {
                         let result = pipeline::run_compiler(&src, &macros);
+                        let assembly = result.assembly.clone();
                         compile_result.set(Some(result));
-                        compiling.set(false);
-                        // Advance to Compile step (skip Preprocess since we show both)
-                        inner_step.set(WizardStep::Compile);
 
-                        // Scroll to output
+                        // If we got assembly, assemble and run it
+                        if let Some(ref asm_source) = assembly {
+                            let rr = pipeline::run_program(asm_source);
+                            run_result.set(Some(rr));
+                            // Advance all the way to Run
+                            inner_step.set(WizardStep::Run);
+                        } else {
+                            // Stop at Compile to show the error
+                            inner_step.set(WizardStep::Compile);
+                        }
+
+                        compiling.set(false);
+
+                        // Scroll to final output
                         gloo::timers::callback::Timeout::new(100, || {
+                            let target = "cell-run";
                             if let Some(window) = web_sys::window()
                                 && let Some(document) = window.document()
-                                && let Some(element) = document.get_element_by_id("cell-compile")
+                                && let Some(element) = document.get_element_by_id(target)
                             {
                                 element.scroll_into_view();
                             }
@@ -433,11 +450,16 @@ pub fn app() -> Html {
                             </div>
                         </div>
 
-                        // Compiler boot output
-                        <div class="notebook-cell" id="cell-boot">
+                        // Compiler output
+                        <div class="notebook-cell" id="cell-compile">
                             <div class="cell-header">
-                                <span>{"Compiler Boot (16 Self-Test Suites)"}</span>
+                                <span>{"Compiler Output"}</span>
                                 if let Some(ref result) = *compile_result {
+                                    if result.error.is_some() {
+                                        <span class="cell-status-error">{"\u{2717} Error"}</span>
+                                    } else {
+                                        <span class="cell-status-ok">{"\u{2713} Compiled"}</span>
+                                    }
                                     <span class="cell-header-stats">
                                         {format!("{} instructions", format_count(result.instructions))}
                                     </span>
@@ -447,33 +469,9 @@ pub fn app() -> Html {
                                 if *compiling {
                                     <div class="compile-status">
                                         <span class="compile-spinner">{"\u{23F3}"}</span>
-                                        <span>{"Running PL/SW compiler on COR24 emulator..."}</span>
+                                        <span>{"Compiling PL/SW on COR24 emulator..."}</span>
                                     </div>
                                 } else if let Some(ref result) = *compile_result {
-                                    <pre class="pipeline-output">{&result.boot_output}</pre>
-                                } else {
-                                    <div class="notebook-placeholder">
-                                        <span>{"Waiting for compiler boot..."}</span>
-                                    </div>
-                                }
-                            </div>
-                        </div>
-                    }
-
-                    if *current_step >= WizardStep::Compile {
-                        <div class="notebook-cell" id="cell-compile">
-                            <div class="cell-header">
-                                <span>{"Compiler Output (Tokenizer REPL)"}</span>
-                                if let Some(ref result) = *compile_result {
-                                    if result.error.is_some() {
-                                        <span class="cell-status-error">{"\u{2717} Error"}</span>
-                                    } else {
-                                        <span class="cell-status-ok">{"\u{2713} OK"}</span>
-                                    }
-                                }
-                            </div>
-                            <div class="cell-content">
-                                if let Some(ref result) = *compile_result {
                                     if let Some(ref err) = result.error {
                                         <div class="compile-error">
                                             <span class="error-label">{"Error: "}</span>
@@ -482,16 +480,7 @@ pub fn app() -> Html {
                                     }
                                     if !result.compiler_output.is_empty() {
                                         <pre class="pipeline-output">{&result.compiler_output}</pre>
-                                    } else if result.error.is_none() {
-                                        <div class="compile-status">
-                                            <span>{"No token output (source may be empty)"}</span>
-                                        </div>
                                     }
-                                    <div class="compile-note">
-                                        <em>{"Note: The PL/SW compiler has a complete parser, type system, symbol table, \
-                                              storage layout, and expression codegen. The REPL currently exposes the \
-                                              tokenizer; full end-to-end compilation is under development."}</em>
-                                    </div>
                                 } else {
                                     <div class="notebook-placeholder">
                                         <span>{"Waiting for compilation..."}</span>
@@ -505,11 +494,22 @@ pub fn app() -> Html {
                         <div class="notebook-cell" id="cell-assemble">
                             <div class="cell-header">
                                 <span>{"Assembly Listing"}</span>
+                                if let Some(ref result) = *compile_result {
+                                    if result.assembly.is_some() {
+                                        <span class="cell-status-ok">{"\u{2713} Generated"}</span>
+                                    }
+                                }
                             </div>
                             <div class="cell-content">
-                                <div class="notebook-placeholder">
-                                    <span>{"Assembler -- coming soon"}</span>
-                                </div>
+                                if let Some(ref result) = *compile_result {
+                                    if let Some(ref asm) = result.assembly {
+                                        <pre class="pipeline-output assembly-listing">{asm}</pre>
+                                    } else {
+                                        <div class="compile-error">
+                                            <span>{"No assembly generated"}</span>
+                                        </div>
+                                    }
+                                }
                             </div>
                         </div>
                     }
@@ -517,12 +517,38 @@ pub fn app() -> Html {
                     if *current_step >= WizardStep::Run {
                         <div class="notebook-cell" id="cell-run">
                             <div class="cell-header">
-                                <span>{"Execution / Debugger"}</span>
+                                <span>{"Program Output"}</span>
+                                if let Some(ref rr) = *run_result {
+                                    if rr.error.is_some() {
+                                        <span class="cell-status-error">{"\u{2717} Error"}</span>
+                                    } else if rr.halted {
+                                        <span class="cell-status-ok">{"\u{2713} Halted"}</span>
+                                    }
+                                    <span class="cell-header-stats">
+                                        {format!("{} instructions", format_count(rr.instructions))}
+                                    </span>
+                                }
                             </div>
                             <div class="cell-content">
-                                <div class="notebook-placeholder">
-                                    <span>{"Debugger -- coming soon"}</span>
-                                </div>
+                                if let Some(ref rr) = *run_result {
+                                    if let Some(ref err) = rr.error {
+                                        <div class="compile-error">
+                                            <span class="error-label">{"Error: "}</span>
+                                            <span>{err}</span>
+                                        </div>
+                                    }
+                                    if !rr.output.is_empty() {
+                                        <pre class="pipeline-output run-output">{&rr.output}</pre>
+                                    } else if rr.error.is_none() {
+                                        <div class="compile-status">
+                                            <span>{"Program produced no UART output"}</span>
+                                        </div>
+                                    }
+                                } else {
+                                    <div class="notebook-placeholder">
+                                        <span>{"Waiting for execution..."}</span>
+                                    </div>
+                                }
                             </div>
                         </div>
                     }

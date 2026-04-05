@@ -19,19 +19,16 @@ pub struct Demo {
 pub const DEMOS: &[Demo] = &[
     Demo {
         name: "Hello World",
-        description: "Print a greeting via UART",
-        source: r#"/* Hello World -- PL/SW demo */
+        description: "Print a greeting via UART (compiler suite 31)",
+        source: r#"/* hello.plsw -- Hello World in PL/SW
+ * First end-to-end demo of the PL/SW compiler.
+ * Declares a static string and prints it via UART. */
 
-HELLO: PROC;
-  DCL 1 MSG CHAR(14) INIT('Hello, PL/SW!');
-  DCL 1 I INT;
-  DCL 1 UART_TX PTR INIT(0xFF0102);
+DCL MSG(20) CHAR INIT('Hello from PL/SW!');
 
-  DO I = 0 TO 13;
-    UART_TX->BYTE = MSG(I);
-  END;
-  RETURN;
-END HELLO;
+MAIN: PROC;
+    CALL UART_PUTS(ADDR(MSG));
+END;
 "#,
         macros: &[],
     },

@@ -14,10 +14,10 @@ Built with Rust, Yew 0.21, and Trunk. Runs entirely in the browser as a WASM app
 
 - PL/SW source editor with .plsw syntax highlighting
 - Macro file editor with .msw syntax highlighting and collapsible cells
-- Wizard-driven compilation pipeline (preprocess -> compile -> assemble -> run)
+- End-to-end compilation pipeline: edit -> preprocess -> compile -> assemble -> run
+- Compiler runs on COR24 emulator in WASM via 'c' (compile) mode
+- Generated assembly listing and program execution with UART output
 - Collapsible macro expansion view with preprocessor output
-- Assembly listing and debugger with run/step, registers, memory, UART I/O
-- Pipeline visualization tab showing all 7 compiler stages
 - Demo programs and .plsw/.msw file upload
 - Notebook-cell scrolling UI
 
