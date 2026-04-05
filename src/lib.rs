@@ -235,18 +235,22 @@ pub fn app() -> Html {
         })
     };
 
-    // Wizard step click
+    // Wizard step click -- navigate back to any completed step
     let on_step_click = {
         let current_step = current_step.clone();
         Callback::from(move |step: WizardStep| {
             if step <= *current_step {
+                current_step.set(step);
                 let cell_id = step.cell_id().to_string();
-                if let Some(window) = web_sys::window()
-                    && let Some(document) = window.document()
-                    && let Some(element) = document.get_element_by_id(&cell_id)
-                {
-                    element.scroll_into_view();
-                }
+                gloo::timers::callback::Timeout::new(50, move || {
+                    if let Some(window) = web_sys::window()
+                        && let Some(document) = window.document()
+                        && let Some(element) = document.get_element_by_id(&cell_id)
+                    {
+                        element.scroll_into_view();
+                    }
+                })
+                .forget();
             }
         })
     };
