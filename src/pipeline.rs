@@ -273,28 +273,45 @@ fn capture_dump(emu: &EmulatorCore, program_end: u32) -> EmulatorDump {
         *reg = emu.get_reg(i as u8);
     }
 
-    // Scan for non-zero memory after program code (data section + stack)
     let mut memory_regions = Vec::new();
-    let mut region_start = None;
-    let mut region_bytes = Vec::new();
 
-    // Scan data region and stack area
-    let scan_end = 0x010000u32.min(program_end + 4096);
-    for addr in program_end..scan_end {
-        let byte = emu.read_byte(addr);
-        if byte != 0 {
-            if region_start.is_none() {
-                region_start = Some(addr);
+    // Scan regions for non-zero bytes, collecting contiguous runs.
+    let scan_ranges: &[(u32, u32, &str)] = &[
+        // Program .text + .data (0 to program_end)
+        (0, program_end, "SRAM (program)"),
+        // Data region after program
+        (
+            program_end,
+            (program_end + 4096).min(0x010000),
+            "SRAM (data)",
+        ),
+        // EBR stack area (top 3KB: 0xFEE400..0xFEEC00)
+        (0xFEE400, 0xFEEC00, "EBR (stack)"),
+        // I/O: LED + UART
+        (0xFF0000, 0xFF0002, "I/O LED"),
+        (0xFF0100, 0xFF0104, "I/O UART"),
+    ];
+
+    for &(start, end, _label) in scan_ranges {
+        let mut region_start = None;
+        let mut region_bytes = Vec::new();
+
+        for addr in start..end {
+            let byte = emu.read_byte(addr);
+            if byte != 0 {
+                if region_start.is_none() {
+                    region_start = Some(addr);
+                }
+                region_bytes.push(byte);
+            } else if region_start.is_some() {
+                memory_regions.push((region_start.unwrap(), region_bytes.clone()));
+                region_start = None;
+                region_bytes.clear();
             }
-            region_bytes.push(byte);
-        } else if region_start.is_some() {
-            memory_regions.push((region_start.unwrap(), region_bytes.clone()));
-            region_start = None;
-            region_bytes.clear();
         }
-    }
-    if let Some(start) = region_start {
-        memory_regions.push((start, region_bytes));
+        if let Some(s) = region_start {
+            memory_regions.push((s, region_bytes));
+        }
     }
 
     EmulatorDump {

@@ -55,6 +55,18 @@ fn format_count(n: u64) -> String {
     }
 }
 
+/// Add line numbers to source text.
+fn number_lines(source: &str) -> String {
+    let lines: Vec<&str> = source.lines().collect();
+    let width = lines.len().to_string().len().max(3);
+    lines
+        .iter()
+        .enumerate()
+        .map(|(i, line)| format!("{:>width$}  {line}", i + 1))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// COR24 register names: r0, r1, r2, fp, sp, z/c, iv, ir
 const REG_NAMES: [&str; 8] = ["r0", "r1", "r2", "fp", "sp", "z/c", "iv", "ir"];
 
@@ -439,9 +451,9 @@ pub fn app() -> Html {
 
     html! {
         <>
-            // GitHub corner
-            <a href="https://github.com/sw-embed/web-sw-cor24-plsw" class="github-corner"
-               aria-label="View source on GitHub" target="_blank">
+            // GitHub corner triangle
+            <a href="https://github.com/sw-embed/web-sw-cor24-plsw"
+               class="github-corner" aria-label="View source on GitHub" target="_blank">
                 <svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true">
                     <path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z" />
                     <path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 \
@@ -503,11 +515,6 @@ pub fn app() -> Html {
                     />
 
                     <div class="sidebar-spacer"></div>
-
-                    <a href="https://github.com/sw-embed/web-sw-cor24-plsw"
-                       target="_blank" rel="noopener" class="sidebar-link">
-                        {"GitHub"}<span class="ext-icon">{" \u{2197}"}</span>
-                    </a>
                 </div>
 
                 // Right: Notebook cells
@@ -547,7 +554,7 @@ pub fn app() -> Html {
                             </div>
                             <div class="cell-content">
                                 if let Some(ref pp) = *preprocess_result {
-                                    <pre class="pipeline-output">{&pp.output}</pre>
+                                    <pre class="pipeline-output">{number_lines(&pp.output)}</pre>
                                 } else {
                                     <div class="notebook-placeholder">
                                         <span>{"Click Preprocess to expand macros"}</span>

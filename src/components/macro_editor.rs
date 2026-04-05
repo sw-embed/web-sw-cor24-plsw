@@ -78,7 +78,7 @@ pub fn macro_editor(props: &MacroEditorProps) -> Html {
         <div class="notebook-cell" id="cell-macros">
             <div class="cell-header">
                 <span>{"Macro Files (.msw)"}</span>
-                <div class="macro-header-actions">
+                <span class="macro-header-actions">
                     <button class="macro-action-btn" onclick={on_upload_click}
                         title="Upload .msw file">
                         {"\u{1F4C2}"}
@@ -89,7 +89,11 @@ pub fn macro_editor(props: &MacroEditorProps) -> Html {
                     } title="Add new macro file">
                         {"+"}
                     </button>
-                </div>
+                    <a href="https://github.com/sw-embed/web-sw-cor24-plsw"
+                       class="header-action-repo-link" target="_blank" rel="noopener">
+                        {"sw-embed/web-sw-cor24-plsw"}
+                    </a>
+                </span>
             </div>
             <div class="cell-content">
                 <input type="file" ref={file_upload_ref}

@@ -65,6 +65,35 @@
             font-size: 15px;
             color: var(--overlay2);
         }
+        .github-corner {
+            position: fixed;
+            top: 0;
+            right: 0;
+            z-index: 100;
+        }
+        .github-corner svg {
+            fill: var(--blue);
+            color: var(--base);
+        }
+        .github-corner:hover .octo-arm {
+            animation: octocat-wave 560ms ease-in-out;
+        }
+        @keyframes octocat-wave {
+            0%, 100% { transform: rotate(0); }
+            20%, 60% { transform: rotate(-25deg); }
+            40%, 80% { transform: rotate(10deg); }
+        }
+        .header-action-repo-link {
+            font-size: 11px;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+            color: var(--overlay0);
+            text-decoration: none;
+            margin-left: 8px;
+            transition: color 0.15s;
+        }
+        .header-action-repo-link:hover {
+            color: var(--blue);
+        }
         #app {
             flex: 1;
             min-height: 0;
@@ -90,24 +119,6 @@
         .footer-sep { color: var(--surface2); }
 
         /* GitHub corner */
-        .github-corner {
-            position: absolute;
-            top: 0;
-            right: 0;
-            z-index: 100;
-        }
-        .github-corner svg {
-            fill: var(--blue);
-            color: var(--base);
-        }
-        .github-corner:hover .octo-arm {
-            animation: octocat-wave 560ms ease-in-out;
-        }
-        @keyframes octocat-wave {
-            0%, 100% { transform: rotate(0); }
-            20%, 60% { transform: rotate(-25deg); }
-            40%, 80% { transform: rotate(10deg); }
-        }
     </style>
 </head>
 <body>

@@ -338,6 +338,10 @@ END;
  * Demonstrates: level-based DCL, record field access,
  * ADDR(), pointer dereference (P->field). */
 
+DCL LBL_SUM(8) CHAR INIT('Sum: ');
+DCL LBL_X(8) CHAR INIT('X: ');
+DCL LBL_Y(8) CHAR INIT('Y: ');
+
 MAIN: PROC;
     DCL 1 POINT,
         3 X INT,
@@ -353,18 +357,17 @@ MAIN: PROC;
     P = ADDR(POINT);
     SUM = P->X + P->Y;
 
-    /* Print sum as ASCII character (3+7=10=newline, use +48 for digit) */
-    CALL UART_PUTS(ADDR('Sum:'));
-    CALL UART_PUTCHAR(SUM + 48);
-    CALL UART_PUTCHAR(10);
-
-    /* Verify fields via pointer */
-    CALL UART_PUTS(ADDR('X:'));
+    /* Print values as ASCII digits */
+    CALL UART_PUTS(ADDR(LBL_X));
     CALL UART_PUTCHAR(P->X + 48);
     CALL UART_PUTCHAR(10);
 
-    CALL UART_PUTS(ADDR('Y:'));
+    CALL UART_PUTS(ADDR(LBL_Y));
     CALL UART_PUTCHAR(P->Y + 48);
+    CALL UART_PUTCHAR(10);
+
+    CALL UART_PUTS(ADDR(LBL_SUM));
+    CALL UART_PUTCHAR(SUM + 48);
     CALL UART_PUTCHAR(10);
 END;
 "#,
