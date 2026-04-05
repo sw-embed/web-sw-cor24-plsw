@@ -19,7 +19,7 @@ const BOOT_LIMIT: u64 = 50_000_000;
 const FEED_BATCH: u64 = 100_000;
 
 /// Maximum total instructions for a compilation run.
-const COMPILE_LIMIT: u64 = 200_000_000;
+const COMPILE_LIMIT: u64 = 500_000_000;
 
 /// Maximum instructions for running the compiled program.
 const RUN_LIMIT: u64 = 10_000_000;
@@ -50,6 +50,21 @@ pub struct RunResult {
     pub halted: bool,
     /// Assembly errors if assembly failed.
     pub error: Option<String>,
+    /// Post-run emulator state dump.
+    pub dump: Option<EmulatorDump>,
+}
+
+/// Snapshot of emulator state after execution.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EmulatorDump {
+    pub pc: u32,
+    /// COR24 registers: r0, r1, r2, fp, sp, z/c, iv, ir
+    pub registers: [u32; 8],
+    pub condition_flag: bool,
+    pub cycles: u64,
+    pub led: u8,
+    /// Non-zero memory regions (addr, bytes).
+    pub memory_regions: Vec<(u32, Vec<u8>)>,
 }
 
 /// Compile PL/SW source to COR24 assembly via the compiler running on the emulator.
@@ -115,20 +130,35 @@ pub fn run_compiler(source: &str, macro_sources: &[(String, String)]) -> Compile
         }
     }
 
-    // Step 4: Build input — "c\n" + macro sources + main source + EOT
+    // Step 4: Build input using FILE:/SOURCE: protocol.
+    // FILE:name\n<content>\x1E  — register include file
+    // SOURCE:\n<content>\x04    — main source to compile
     let mut input = String::from("c\n");
     for (name, macro_src) in macro_sources {
-        input.push_str(&format!("/* --- {name} --- */\n"));
+        // Strip .msw extension for the include name
+        let include_name = name.strip_suffix(".msw").unwrap_or(name);
+        input.push_str(&format!("FILE:{include_name}\n"));
         input.push_str(macro_src);
         if !macro_src.ends_with('\n') {
             input.push('\n');
         }
+        input.push('\x1E'); // RS (record separator) terminates FILE block
     }
-    input.push_str(source);
-    if !source.ends_with('\n') {
-        input.push('\n');
+    if macro_sources.is_empty() {
+        // No includes — use legacy raw source mode
+        input.push_str(source);
+        if !source.ends_with('\n') {
+            input.push('\n');
+        }
+        input.push('\x04');
+    } else {
+        input.push_str("SOURCE:\n");
+        input.push_str(source);
+        if !source.ends_with('\n') {
+            input.push('\n');
+        }
+        input.push('\x04');
     }
-    input.push('\x04'); // EOT sentinel
 
     let mut rx_queue: VecDeque<u8> = input.bytes().collect();
 
@@ -192,13 +222,15 @@ pub fn run_program(assembly_source: &str) -> RunResult {
                 "Assembly failed:\n{}",
                 asm_result.errors.join("\n")
             )),
+            dump: None,
         };
     }
 
     let mut emu = EmulatorCore::new();
     emu.set_uart_tx_busy_cycles(0);
     emu.load_program(0, &asm_result.bytes);
-    emu.load_program_extent(asm_result.bytes.len() as u32);
+    let program_end = asm_result.bytes.len() as u32;
+    emu.load_program_extent(program_end);
     emu.set_pc(0);
     emu.resume();
 
@@ -211,22 +243,67 @@ pub fn run_program(assembly_source: &str) -> RunResult {
         collect_uart(&mut emu, &mut output);
 
         if matches!(result.reason, StopReason::Halted) {
+            let dump = capture_dump(&emu, program_end);
             return RunResult {
                 output,
                 instructions: total_instructions,
                 halted: true,
                 error: None,
+                dump: Some(dump),
             };
         }
 
         if total_instructions >= RUN_LIMIT {
+            let dump = capture_dump(&emu, program_end);
             return RunResult {
                 output,
                 instructions: total_instructions,
                 halted: false,
                 error: Some("Program exceeded instruction limit".into()),
+                dump: Some(dump),
             };
         }
+    }
+}
+
+/// Capture emulator state for the post-run dump.
+fn capture_dump(emu: &EmulatorCore, program_end: u32) -> EmulatorDump {
+    let mut registers = [0u32; 8];
+    for (i, reg) in registers.iter_mut().enumerate() {
+        *reg = emu.get_reg(i as u8);
+    }
+
+    // Scan for non-zero memory after program code (data section + stack)
+    let mut memory_regions = Vec::new();
+    let mut region_start = None;
+    let mut region_bytes = Vec::new();
+
+    // Scan data region and stack area
+    let scan_end = 0x010000u32.min(program_end + 4096);
+    for addr in program_end..scan_end {
+        let byte = emu.read_byte(addr);
+        if byte != 0 {
+            if region_start.is_none() {
+                region_start = Some(addr);
+            }
+            region_bytes.push(byte);
+        } else if region_start.is_some() {
+            memory_regions.push((region_start.unwrap(), region_bytes.clone()));
+            region_start = None;
+            region_bytes.clear();
+        }
+    }
+    if let Some(start) = region_start {
+        memory_regions.push((start, region_bytes));
+    }
+
+    EmulatorDump {
+        pc: emu.pc(),
+        registers,
+        condition_flag: emu.condition_flag(),
+        cycles: emu.cycles(),
+        led: emu.get_led(),
+        memory_regions,
     }
 }
 

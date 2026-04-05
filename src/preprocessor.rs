@@ -195,7 +195,18 @@ fn expand_macro(
 }
 
 /// Preprocess PL/SW source with the given macro files.
+/// Inlines %INCLUDE content and expands ?MACRO() invocations.
 pub fn preprocess(source: &str, macro_sources: &[(String, String)]) -> PreprocessResult {
+    // Build include lookup: strip .msw extension, case-insensitive
+    let mut include_map: HashMap<String, &str> = HashMap::new();
+    for (name, content) in macro_sources {
+        let key = name
+            .strip_suffix(".msw")
+            .unwrap_or(name)
+            .to_ascii_lowercase();
+        include_map.insert(key, content.as_str());
+    }
+
     // Parse all macro definitions from .msw files
     let mut macro_defs: HashMap<String, MacroDef> = HashMap::new();
     for (_name, msw_source) in macro_sources {
@@ -211,10 +222,27 @@ pub fn preprocess(source: &str, macro_sources: &[(String, String)]) -> Preproces
     for (line_num, line) in source.lines().enumerate() {
         let trimmed = line.trim();
 
-        // Check for %INCLUDE directives
+        // Check for %INCLUDE directives -- inline the file content
         if trimmed.starts_with("%INCLUDE") {
+            let include_name = trimmed
+                .strip_prefix("%INCLUDE")
+                .unwrap_or("")
+                .trim()
+                .trim_end_matches(';')
+                .trim()
+                .to_ascii_lowercase();
+
             source_lines.push(SourceLine::Include(line.to_string()));
-            output_lines.push(format!("/* {line} */"));
+
+            if let Some(content) = include_map.get(&include_name) {
+                output_lines.push(format!("/* --- {include_name}.msw --- */"));
+                for inc_line in content.lines() {
+                    output_lines.push(inc_line.to_string());
+                }
+                output_lines.push(format!("/* --- end {include_name}.msw --- */"));
+            } else {
+                output_lines.push(format!("/* {line} -- not found */"));
+            }
             continue;
         }
 

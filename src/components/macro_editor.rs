@@ -26,21 +26,6 @@ impl MacroFile {
     }
 }
 
-/// Macro-specific keywords for syntax highlighting.
-const MACRO_KEYWORDS: &[&str] = &[
-    "MACRODEF", "GEN", "REQUIRED", "OPTIONAL", "END", "IF", "THEN", "ELSE", "DO", "WHILE",
-];
-
-/// PL/SW type keywords that may appear in macro bodies.
-const TYPE_KEYWORDS: &[&str] = &[
-    "DCL", "PROC", "BYTE", "WORD", "INT", "CHAR", "PTR", "BIT", "FIXED", "BASED", "DEFINED",
-    "STATIC", "AUTO", "ENTRY", "LABEL", "BUILTIN", "ADDR", "LENGTH", "SUBSTR", "NULL", "RETURN",
-    "CALL", "GOTO", "BEGIN", "ON", "REVERT", "SIGNAL", "INIT", "TO", "BY",
-];
-
-/// Directive keyword.
-const INCLUDE_DIRECTIVE: &str = "%INCLUDE";
-
 #[derive(Properties, PartialEq)]
 pub struct MacroEditorProps {
     pub files: Vec<MacroFile>,
@@ -119,16 +104,18 @@ pub fn macro_editor(props: &MacroEditorProps) -> Html {
                         </span>
                     </div>
                 } else {
-                    { for props.files.iter().enumerate().map(|(idx, file)| {
-                        render_macro_file(
-                            idx,
-                            file,
-                            &props.on_change,
-                            &props.on_remove,
-                            &props.on_rename,
-                            &props.on_toggle_collapse,
-                        )
-                    })}
+                    <div class="macro-file-strip">
+                        { for props.files.iter().enumerate().map(|(idx, file)| {
+                            render_macro_file(
+                                idx,
+                                file,
+                                &props.on_change,
+                                &props.on_remove,
+                                &props.on_rename,
+                                &props.on_toggle_collapse,
+                            )
+                        })}
+                    </div>
                 }
             </div>
         </div>
@@ -143,7 +130,6 @@ fn render_macro_file(
     on_rename: &Callback<(usize, String)>,
     on_toggle_collapse: &Callback<usize>,
 ) -> Html {
-    let highlighted = highlight_msw(&file.source);
     let collapse_icon = if file.collapsed {
         "\u{25B6}"
     } else {
@@ -199,202 +185,14 @@ fn render_macro_file(
                 </button>
             </div>
             if !file.collapsed {
-                <div class="macro-file-editor editor-container">
-                    <pre class="editor-highlight">
-                        <code>{ Html::from_html_unchecked(AttrValue::from(highlighted)) }</code>
-                    </pre>
-                    <textarea
-                        class="editor-textarea"
-                        spellcheck="false"
-                        autocomplete="off"
-                        value={file.source.clone()}
-                        {oninput}
-                    />
-                </div>
+                <textarea
+                    class="macro-file-textarea"
+                    spellcheck="false"
+                    autocomplete="off"
+                    value={file.source.clone()}
+                    {oninput}
+                />
             }
         </div>
-    }
-}
-
-/// Syntax highlighter for .msw macro files.
-fn highlight_msw(source: &str) -> String {
-    let mut out = String::with_capacity(source.len() * 2);
-    let chars: Vec<char> = source.chars().collect();
-    let len = chars.len();
-    let mut i = 0;
-
-    while i < len {
-        // Block comments: /* ... */
-        if i + 1 < len && chars[i] == '/' && chars[i + 1] == '*' {
-            out.push_str("<span class=\"hl-comment\">");
-            out.push_str(&escape("/*"));
-            i += 2;
-            while i < len {
-                if i + 1 < len && chars[i] == '*' && chars[i + 1] == '/' {
-                    out.push_str(&escape("*/"));
-                    i += 2;
-                    break;
-                }
-                out.push_str(&escape_char(chars[i]));
-                i += 1;
-            }
-            out.push_str("</span>");
-            continue;
-        }
-
-        // String literals: '...' (used in GEN blocks)
-        if chars[i] == '\'' {
-            out.push_str("<span class=\"hl-string\">");
-            out.push_str(&escape_char(chars[i]));
-            i += 1;
-            while i < len && chars[i] != '\'' {
-                out.push_str(&escape_char(chars[i]));
-                i += 1;
-            }
-            if i < len {
-                out.push_str(&escape_char(chars[i]));
-                i += 1;
-            }
-            out.push_str("</span>");
-            continue;
-        }
-
-        // String literals: "..." (GEN assembly strings)
-        if chars[i] == '"' {
-            out.push_str("<span class=\"hl-gen-string\">");
-            out.push_str(&escape_char(chars[i]));
-            i += 1;
-            while i < len && chars[i] != '"' {
-                // Highlight {PARAM} template substitutions inside strings
-                if chars[i] == '{' {
-                    out.push_str("<span class=\"hl-gen-param\">");
-                    out.push_str(&escape_char(chars[i]));
-                    i += 1;
-                    while i < len && chars[i] != '}' && chars[i] != '"' {
-                        out.push_str(&escape_char(chars[i]));
-                        i += 1;
-                    }
-                    if i < len && chars[i] == '}' {
-                        out.push_str(&escape_char(chars[i]));
-                        i += 1;
-                    }
-                    out.push_str("</span>");
-                } else {
-                    out.push_str(&escape_char(chars[i]));
-                    i += 1;
-                }
-            }
-            if i < len {
-                out.push_str(&escape_char(chars[i]));
-                i += 1;
-            }
-            out.push_str("</span>");
-            continue;
-        }
-
-        // %INCLUDE directive
-        if chars[i] == '%' && i + 1 < len && chars[i + 1].is_ascii_alphabetic() {
-            let start = i;
-            i += 1;
-            while i < len && (chars[i].is_ascii_alphanumeric() || chars[i] == '_') {
-                i += 1;
-            }
-            let word: String = chars[start..i].iter().collect();
-            let upper = word.to_ascii_uppercase();
-            if upper == INCLUDE_DIRECTIVE {
-                out.push_str("<span class=\"hl-directive\">");
-                out.push_str(&escape(&word));
-                out.push_str("</span>");
-            } else {
-                out.push_str(&escape(&word));
-            }
-            continue;
-        }
-
-        // Macro invocations: ?NAME
-        if chars[i] == '?' && i + 1 < len && chars[i + 1].is_ascii_alphabetic() {
-            out.push_str("<span class=\"hl-macro\">");
-            out.push_str(&escape_char(chars[i]));
-            i += 1;
-            while i < len && (chars[i].is_ascii_alphanumeric() || chars[i] == '_') {
-                out.push_str(&escape_char(chars[i]));
-                i += 1;
-            }
-            out.push_str("</span>");
-            continue;
-        }
-
-        // Numbers
-        if chars[i].is_ascii_digit() {
-            out.push_str("<span class=\"hl-number\">");
-            if chars[i] == '0' && i + 1 < len && (chars[i + 1] == 'x' || chars[i + 1] == 'X') {
-                out.push_str(&escape_char(chars[i]));
-                i += 1;
-                out.push_str(&escape_char(chars[i]));
-                i += 1;
-                while i < len && chars[i].is_ascii_hexdigit() {
-                    out.push_str(&escape_char(chars[i]));
-                    i += 1;
-                }
-            } else {
-                while i < len && chars[i].is_ascii_digit() {
-                    out.push_str(&escape_char(chars[i]));
-                    i += 1;
-                }
-            }
-            out.push_str("</span>");
-            continue;
-        }
-
-        // Identifiers and keywords
-        if chars[i].is_ascii_alphabetic() || chars[i] == '_' {
-            let start = i;
-            while i < len && (chars[i].is_ascii_alphanumeric() || chars[i] == '_') {
-                i += 1;
-            }
-            let word: String = chars[start..i].iter().collect();
-            let upper = word.to_ascii_uppercase();
-
-            if MACRO_KEYWORDS.contains(&upper.as_str()) {
-                out.push_str("<span class=\"hl-macro-keyword\">");
-                out.push_str(&escape(&word));
-                out.push_str("</span>");
-            } else if upper == "ASM" || upper == "ASM_EXPR" {
-                out.push_str("<span class=\"hl-asm\">");
-                out.push_str(&escape(&word));
-                out.push_str("</span>");
-            } else if TYPE_KEYWORDS.contains(&upper.as_str()) {
-                out.push_str("<span class=\"hl-keyword\">");
-                out.push_str(&escape(&word));
-                out.push_str("</span>");
-            } else if upper == "EXPR" || upper == "LVALUE" {
-                out.push_str("<span class=\"hl-type-hint\">");
-                out.push_str(&escape(&word));
-                out.push_str("</span>");
-            } else {
-                out.push_str(&escape(&word));
-            }
-            continue;
-        }
-
-        out.push_str(&escape_char(chars[i]));
-        i += 1;
-    }
-
-    out
-}
-
-fn escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-}
-
-fn escape_char(c: char) -> String {
-    match c {
-        '&' => "&amp;".to_string(),
-        '<' => "&lt;".to_string(),
-        '>' => "&gt;".to_string(),
-        _ => c.to_string(),
     }
 }

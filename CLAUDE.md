@@ -81,4 +81,4 @@ rust-project-init, yew-component, wasm-build, rust-clippy-fix, pre-commit, rust-
 - Flexbox layout for responsive multi-panel design
 - `include_bytes!()` / `include!()` for embedding build-time outputs
 - Release profile: `opt-level = "z"`, `lto = true` for minimal WASM size
-- GitHub Pages URL: https://softwarewrighter.github.io/web-sw-cor24-plsw/
+- GitHub Pages URL: https://sw-embed.github.io/web-sw-cor24-plsw/

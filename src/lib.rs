@@ -3,13 +3,11 @@ pub mod demos;
 pub mod pipeline;
 pub mod preprocessor;
 
-use components::{
-    MacroEditor, MacroExpansionView, MacroFile, SourceEditor, WizardSidebar, WizardStep,
-};
+use components::{MacroEditor, MacroFile, SourceEditor, WizardSidebar, WizardStep};
 use demos::DEMOS;
 use gloo::file::File;
 use gloo::file::callbacks::FileReader;
-use pipeline::{CompileResult, RunResult};
+use pipeline::{CompileResult, EmulatorDump, RunResult};
 use preprocessor::PreprocessResult;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlInputElement, HtmlSelectElement};
@@ -57,6 +55,63 @@ fn format_count(n: u64) -> String {
     }
 }
 
+/// COR24 register names: r0, r1, r2, fp, sp, z/c, iv, ir
+const REG_NAMES: [&str; 8] = ["r0", "r1", "r2", "fp", "sp", "z/c", "iv", "ir"];
+
+/// Format an emulator dump for display.
+fn format_dump(dump: &EmulatorDump) -> String {
+    let mut out = String::new();
+
+    // Registers
+    out.push_str("── Registers ──\n");
+    out.push_str(&format!(
+        "  PC  = 0x{:06X}    C = {}\n",
+        dump.pc, dump.condition_flag as u8
+    ));
+    for (i, &val) in dump.registers.iter().enumerate() {
+        out.push_str(&format!("  {:<3} = 0x{:06X}", REG_NAMES[i], val));
+        if i == 2 || i == 4 || i == 7 {
+            out.push('\n');
+        } else {
+            out.push_str("    ");
+        }
+    }
+
+    // I/O
+    out.push_str(&format!("\n── I/O ──\n  LED = 0x{:02X}\n", dump.led));
+
+    // Memory regions
+    if !dump.memory_regions.is_empty() {
+        out.push_str("\n── Memory (non-zero) ──\n");
+        for (addr, bytes) in &dump.memory_regions {
+            // Display in 16-byte rows with ASCII sidebar
+            for chunk_start in (0..bytes.len()).step_by(16) {
+                let chunk_end = (chunk_start + 16).min(bytes.len());
+                let chunk = &bytes[chunk_start..chunk_end];
+                out.push_str(&format!("  0x{:06X}:", *addr + chunk_start as u32));
+                for b in chunk {
+                    out.push_str(&format!(" {:02X}", b));
+                }
+                // Pad if short row
+                for _ in chunk.len()..16 {
+                    out.push_str("   ");
+                }
+                out.push_str("  ");
+                for b in chunk {
+                    if b.is_ascii_graphic() || *b == b' ' {
+                        out.push(*b as char);
+                    } else {
+                        out.push('.');
+                    }
+                }
+                out.push('\n');
+            }
+        }
+    }
+
+    out
+}
+
 #[function_component(App)]
 pub fn app() -> Html {
     // Run emulator smoke test on mount
@@ -66,13 +121,15 @@ pub fn app() -> Html {
     });
 
     // Source editor state
-    let source = use_state(|| DEMOS[0].source.to_string());
-    let selected_demo = use_state(|| Some(0usize));
+    // Default to "Hello" demo (index 1 in alphabetized list)
+    let default_demo = 1usize;
+    let source = use_state(|| DEMOS[default_demo].source.to_string());
+    let selected_demo = use_state(|| Some(default_demo));
     let current_step = use_state(|| WizardStep::Source);
 
     // Macro files state
     let macro_files = use_state(|| {
-        DEMOS[0]
+        DEMOS[default_demo]
             .macros
             .iter()
             .map(|m| MacroFile::new(m.name.to_string(), m.source.to_string()))
@@ -194,16 +251,30 @@ pub fn app() -> Html {
         Callback::from(move |()| {
             let current = *current_step;
             if let Some(next) = current.next() {
-                // Trigger full pipeline when advancing to Preprocess
-                if next == WizardStep::Preprocess && !*compiling {
-                    // Run preprocessor first (synchronous, fast)
+                // Preprocess step: just run the preprocessor (fast, synchronous)
+                if next == WizardStep::Preprocess {
                     let macro_pairs: Vec<(String, String)> = macro_files
                         .iter()
                         .map(|m| (m.name.clone(), m.source.clone()))
                         .collect();
                     let pp_result = preprocessor::preprocess(&source, &macro_pairs);
                     preprocess_result.set(Some(pp_result));
+                    current_step.set(WizardStep::Preprocess);
 
+                    gloo::timers::callback::Timeout::new(50, || {
+                        if let Some(window) = web_sys::window()
+                            && let Some(document) = window.document()
+                            && let Some(el) = document.get_element_by_id("cell-preprocess")
+                        {
+                            el.scroll_into_view();
+                        }
+                    })
+                    .forget();
+                    return;
+                }
+
+                // Compile step: run compiler on emulator only
+                if next == WizardStep::Compile && !*compiling {
                     compiling.set(true);
                     let src = (*source).clone();
                     let macros: Vec<(String, String)> = macro_files
@@ -212,45 +283,76 @@ pub fn app() -> Html {
                         .collect();
 
                     let compile_result = compile_result.clone();
-                    let run_result = run_result.clone();
                     let inner_step = current_step.clone();
                     let compiling = compiling.clone();
 
-                    // Run compilation asynchronously via timeout to allow UI to update
-                    gloo::timers::callback::Timeout::new(50, move || {
+                    current_step.set(WizardStep::Compile);
+
+                    gloo::timers::callback::Timeout::new(100, move || {
                         let result = pipeline::run_compiler(&src, &macros);
-                        let assembly = result.assembly.clone();
                         compile_result.set(Some(result));
-
-                        // If we got assembly, assemble and run it
-                        if let Some(ref asm_source) = assembly {
-                            let rr = pipeline::run_program(asm_source);
-                            run_result.set(Some(rr));
-                            // Advance all the way to Run
-                            inner_step.set(WizardStep::Run);
-                        } else {
-                            // Stop at Compile to show the error
-                            inner_step.set(WizardStep::Compile);
-                        }
-
                         compiling.set(false);
+                        // Stay at Compile step — user clicks Assemble next
+                        inner_step.set(WizardStep::Compile);
 
-                        // Scroll to final output
-                        gloo::timers::callback::Timeout::new(100, || {
-                            let target = "cell-run";
+                        gloo::timers::callback::Timeout::new(50, || {
                             if let Some(window) = web_sys::window()
                                 && let Some(document) = window.document()
-                                && let Some(element) = document.get_element_by_id(target)
+                                && let Some(el) = document.get_element_by_id("cell-compile")
                             {
-                                element.scroll_into_view();
+                                el.scroll_into_view();
                             }
                         })
                         .forget();
                     })
                     .forget();
+                    return;
+                }
 
-                    // Show preprocess cell immediately
-                    current_step.set(WizardStep::Preprocess);
+                // Assemble step: just advance (assembly listing is already extracted)
+                if next == WizardStep::Assemble {
+                    current_step.set(WizardStep::Assemble);
+                    gloo::timers::callback::Timeout::new(50, || {
+                        if let Some(window) = web_sys::window()
+                            && let Some(document) = window.document()
+                            && let Some(el) = document.get_element_by_id("cell-assemble")
+                        {
+                            el.scroll_into_view();
+                        }
+                    })
+                    .forget();
+                    return;
+                }
+
+                // Run step: assemble and execute the program
+                if next == WizardStep::Run
+                    && !*compiling
+                    && let Some(ref cr) = *compile_result
+                    && let Some(ref asm_source) = cr.assembly
+                {
+                    compiling.set(true);
+                    let asm = asm_source.clone();
+                    let run_result = run_result.clone();
+                    let compiling = compiling.clone();
+
+                    current_step.set(WizardStep::Run);
+
+                    gloo::timers::callback::Timeout::new(100, move || {
+                        let rr = pipeline::run_program(&asm);
+                        run_result.set(Some(rr));
+                        compiling.set(false);
+
+                        gloo::timers::callback::Timeout::new(50, || {
+                            if let Some(window) = web_sys::window()
+                                && let Some(document) = window.document()
+                                && let Some(el) = document.get_element_by_id("cell-run")
+                            {
+                                el.scroll_into_view();
+                            }
+                        })
+                        .forget();
+                    })
+                    .forget();
                     return;
                 }
 
@@ -338,7 +440,7 @@ pub fn app() -> Html {
     html! {
         <>
             // GitHub corner
-            <a href="https://github.com/softwarewrighter/web-sw-cor24-plsw" class="github-corner"
+            <a href="https://github.com/sw-embed/web-sw-cor24-plsw" class="github-corner"
                aria-label="View source on GitHub" target="_blank">
                 <svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true">
                     <path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z" />
@@ -361,12 +463,12 @@ pub fn app() -> Html {
                 <h1>{"PL/SW"}</h1>
                 <span>{"COR24 Dev"}</span>
             </header>
-            // Main 3-column layout
-            <div id="app" class="plsw-wizard-layout">
-                // Column 1: Sidebar
-                <div class="wizard-sidebar">
+            // Main 2-column layout: sidebar | notebook
+            <div id="app" class="plsw-layout">
+                // Left panel: controls + wizard steps
+                <div class="side-panel">
                     <div class="sidebar-section">
-                        <span class="sidebar-section-label">{"Demo"}</span>
+                        <span class="sidebar-section-label">{"Demos"}</span>
                         <select class="sidebar-select"
                             onchange={on_demo_select}
                             value={selected_demo.map_or(String::new(), |i| i.to_string())}>
@@ -379,32 +481,36 @@ pub fn app() -> Html {
                                 }
                             })}
                         </select>
+                        if let Some(idx) = *selected_demo {
+                            <span class="sidebar-demo-desc">{DEMOS[idx].description}</span>
+                        }
                     </div>
 
                     <div class="sidebar-section">
-                        <span class="sidebar-section-label">{"File"}</span>
                         <input type="file" id="file-upload" class="file-upload-input"
                             accept=".plsw,.msw,.txt" onchange={on_file_upload} />
                         <label for="file-upload" class="file-upload-label">{"Upload .plsw"}</label>
                     </div>
 
+                    <div class="sidebar-divider"></div>
+
+                    // Wizard steps
+                    <WizardSidebar
+                        current_step={*current_step}
+                        {on_step_click}
+                        {on_advance}
+                        has_source={!source.is_empty()}
+                    />
+
                     <div class="sidebar-spacer"></div>
 
-                    <a href="https://github.com/softwarewrighter/web-sw-cor24-plsw"
+                    <a href="https://github.com/sw-embed/web-sw-cor24-plsw"
                        target="_blank" rel="noopener" class="sidebar-link">
                         {"GitHub"}<span class="ext-icon">{" \u{2197}"}</span>
                     </a>
                 </div>
 
-                // Column 2: Wizard steps
-                <WizardSidebar
-                    current_step={*current_step}
-                    {on_step_click}
-                    {on_advance}
-                    has_source={!source.is_empty()}
-                />
-
-                // Column 3: Notebook cells
+                // Right: Notebook cells
                 <div class="notebook-cells" id="notebook-scroll">
                     // Cell: Source editor (always visible)
                     <SourceEditor
@@ -428,20 +534,20 @@ pub fn app() -> Html {
                     }
 
                     if *current_step >= WizardStep::Preprocess {
-                        // Macro expansion view
+                        // Consolidated preprocessed source
                         <div class="notebook-cell" id="cell-preprocess">
                             <div class="cell-header">
                                 <span>{"Preprocessed Source"}</span>
                                 if let Some(ref pp) = *preprocess_result {
                                     <span class="cell-header-stats">
-                                        {format!("{} expansion{}", pp.expansions.len(),
-                                            if pp.expansions.len() == 1 { "" } else { "s" })}
+                                        {format!("{} lines",
+                                            pp.output.lines().count())}
                                     </span>
                                 }
                             </div>
                             <div class="cell-content">
                                 if let Some(ref pp) = *preprocess_result {
-                                    <MacroExpansionView result={pp.clone()} />
+                                    <pre class="pipeline-output">{&pp.output}</pre>
                                 } else {
                                     <div class="notebook-placeholder">
                                         <span>{"Click Preprocess to expand macros"}</span>
@@ -551,6 +657,25 @@ pub fn app() -> Html {
                                 }
                             </div>
                         </div>
+                    }
+
+                    // Emulator state dump (after run)
+                    if *current_step >= WizardStep::Run {
+                        if let Some(ref rr) = *run_result {
+                            if let Some(ref dump) = rr.dump {
+                                <div class="notebook-cell" id="cell-dump">
+                                    <div class="cell-header">
+                                        <span>{"Emulator State"}</span>
+                                        <span class="cell-header-stats">
+                                            {format!("{} cycles", format_count(dump.cycles))}
+                                        </span>
+                                    </div>
+                                    <div class="cell-content">
+                                        <pre class="pipeline-output dump-output">{format_dump(dump)}</pre>
+                                    </div>
+                                </div>
+                            }
+                        }
                     }
 
                     // Pipeline note
