@@ -4,6 +4,8 @@ Browser-based PL/SW development environment for the [sw-cor24-plsw](https://gith
 
 [Live Demo](https://sw-embed.github.io/web-sw-cor24-plsw/)
 
+Part of the [Software Wrighter COR24 Tools Project](https://sw-embed.github.io/web-sw-cor24-demos/#/).
+
 ## Overview
 
 web-sw-cor24-plsw provides an integrated editor and compiler pipeline for PL/SW, a PL/I-inspired freestanding systems programming language targeting the COR24 24-bit RISC ISA. The PL/SW compiler (written in C) runs directly on the COR24 emulator in the browser -- the same self-hosting approach used by the COR24 toolchain.
@@ -52,8 +54,16 @@ Prerequisites: Rust 1.85+, Trunk (`cargo install trunk`), `rustup target add was
 - [sw-cor24-pcode](https://github.com/sw-embed/sw-cor24-pcode) -- P-code VM, assembler, and linker (Rust workspace)
 - [COR24-TB](https://makerlisp.com) -- COR24 FPGA board
 
+## Links
+
+- Blog: [Software Wrighter Lab](https://software-wrighter-lab.github.io/)
+- Discord: [Join the community](https://discord.com/invite/Ctzk5uHggZ)
+- YouTube: [Software Wrighter](https://www.youtube.com/@SoftwareWrighter)
+
+## Copyright
+
+Copyright (c) 2026 Michael A. Wright
+
 ## License
 
 MIT License -- see [LICENSE](LICENSE) for details.
-
-Copyright (c) 2026 Michael A. Wright
