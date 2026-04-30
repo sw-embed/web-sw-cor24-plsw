@@ -133,8 +133,8 @@ pub fn app() -> Html {
     });
 
     // Source editor state
-    // Default to "Hello" demo (index 1 in alphabetized list)
-    let default_demo = 1usize;
+    // Default to the minimal no-op demo.
+    let default_demo = 0usize;
     let source = use_state(|| DEMOS[default_demo].source.to_string());
     let selected_demo = use_state(|| Some(default_demo));
     let current_step = use_state(|| WizardStep::Source);
@@ -708,6 +708,8 @@ pub fn app() -> Html {
                 <a href="https://discord.com/invite/Ctzk5uHggZ" target="_blank">{"Discord"}</a>
                 <span class="footer-sep">{"\u{00b7}"}</span>
                 <a href="https://www.youtube.com/@SoftwareWrighter" target="_blank">{"YouTube"}</a>
+                <span class="footer-sep">{"\u{00b7}"}</span>
+                <a href="/web-sw-cor24-plsw/CHANGES" target="_blank">{"CHANGES"}</a>
                 <span class="footer-sep">{"\u{00b7}"}</span>
                 <span>{ format!("{} \u{00b7} {} \u{00b7} {}",
                     env!("BUILD_HOST"),

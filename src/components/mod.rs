@@ -1,5 +1,6 @@
 pub mod macro_editor;
 pub mod macro_expansion;
+pub mod pl_edit;
 pub mod source_editor;
 pub mod wizard;
 

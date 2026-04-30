@@ -19,7 +19,8 @@ Two tabs provide different views of the same compilation:
 | bar   | Steps    |                                                  |
 |       |          | +----------------------------------------------+ |
 | Demos | [x] Src  | | .plsw Source Editor                          | |
-| Upload|          | | [textarea with syntax highlighting]           | |
+| Upload|          | | [PL/EDIT] [?] [Fullscreen]                   | |
+| Help  |          | | [textarea with syntax highlighting]           | |
 | Help  | [x] Macro| +----------------------------------------------+ |
 |       |          | +----------------------------------------------+ |
 |       | [ ] Pre  | | .msw Macro Files                             | |
@@ -38,9 +39,30 @@ Two tabs provide different views of the same compilation:
 |       |          | | [controls] [listing | registers | memory]    | |
 |       |          | +----------------------------------------------+ |
 +-------+----------+--------------------------------------------------+
-| Footer: MIT | (c) 2026 | COR24-TB | SHA | host | timestamp         |
+| Footer: MIT | (c) 2026 | COR24-TB | Blog | CHANGES | build info     |
 +--------------------------------------------------------------------- +
 ```
+
+## PL/EDIT Template Mode
+
+PL/EDIT is an optional mode on source and macro editors. The user presses the
+`PL/EDIT` button to enable hotkey expansion, types a short trigger such as
+`IF`, and presses `F4` or `Ctrl+Space` to replace the trigger with a compilable
+PL/SW skeleton.
+
+Template skeletons use fill fields. After expansion:
+
+- `Tab` or `Enter` advances to the next fill field
+- `Shift+Tab` moves to the previous fill field
+- `Ctrl+Enter` inserts a newline inside the textarea
+- `?` opens the trigger/help list for the active editor
+- `Fullscreen` expands the editor into a large overlay
+
+The source template set covers common PL/SW forms such as `IF`, `DO WHILE`,
+counted `DO`, `SELECT/WHEN`, scalar and record `DCL`, `PROC`, `RETURNS`, `ASM
+DO`, `CALL`, `RETURN`, and `GOTO`. The macro template set covers `MACRODEF`,
+`REQUIRED`, `OPTIONAL`, `GEN DO`, `%INCLUDE`, and `?MACRO(...)` invocation
+forms.
 
 ## Catppuccin Mocha Theme Integration
 
@@ -271,7 +293,7 @@ The debugger appears in the final notebook cell after assembly:
 ```
 App
   +-- Header
-  |     +-- Title ("PL/SW — COR24 Dev")
+  |     +-- Title ("PL/SW - COR24 Dev")
   |     +-- TabBar (Editor | Pipeline)
   +-- GitHubCorner
   +-- EditorTab

@@ -15,12 +15,14 @@ Built with Rust, Yew 0.21, and Trunk. Runs entirely in the browser as a WASM app
 ## Features
 
 - PL/SW source editor with .plsw syntax highlighting
+- Optional PL/EDIT mode with F4/Ctrl-Space template expansion, Tab/Enter field navigation, ? help, and fullscreen editing
 - Macro file editor with .msw syntax highlighting and collapsible cells
 - End-to-end compilation pipeline: edit -> preprocess -> compile -> assemble -> run
 - Compiler runs on COR24 emulator in WASM via 'c' (compile) mode
 - Generated assembly listing and program execution with UART output
 - Collapsible macro expansion view with preprocessor output
-- Demo programs and .plsw/.msw file upload
+- Demo programs including branch examples, an empty module starter, and a multi-file project skeleton
+- .plsw/.msw file upload
 - Notebook-cell scrolling UI
 
 ## Build
@@ -40,9 +42,11 @@ Prerequisites: Rust 1.85+, Trunk (`cargo install trunk`), `rustup target add was
 
 - [docs/design.md](docs/design.md) -- UI design, layout, component structure
 - [docs/architecture.md](docs/architecture.md) -- System architecture and module organization
+- [docs/pl-edit.md](docs/pl-edit.md) -- PL/EDIT template expansion and formatting
 - [docs/prd.md](docs/prd.md) -- Product requirements
 - [docs/plan.md](docs/plan.md) -- Implementation plan
 - [docs/tools.md](docs/tools.md) -- Toolchain and build system details
+- [CHANGES](CHANGES) -- Reverse chronological commit summary
 
 ## Related Projects
 

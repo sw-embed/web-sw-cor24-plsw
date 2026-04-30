@@ -4,16 +4,64 @@
 //! `<pre><code>` block that renders the highlighted source. The user types
 //! in the textarea; the highlighted view updates in sync.
 
+use crate::components::pl_edit::{
+    PlEditLanguage, PlEditSession, advance_session, expand_at_cursor, format_source,
+    render_pl_edit_help, update_session_after_input,
+};
+use gloo::timers::callback::Timeout;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlTextAreaElement;
 use yew::prelude::*;
 
 /// PL/SW keywords for syntax highlighting.
 const KEYWORDS: &[&str] = &[
-    "DCL", "PROC", "DO", "END", "IF", "THEN", "ELSE", "WHILE", "RETURN", "CALL", "GOTO", "BIT",
-    "BYTE", "WORD", "INT", "CHAR", "PTR", "INIT", "TO", "BY", "FIXED", "BASED", "DEFINED",
-    "STATIC", "AUTO", "ENTRY", "LABEL", "BUILTIN", "ADDR", "LENGTH", "SUBSTR", "NULL", "BEGIN",
-    "ON", "REVERT", "SIGNAL",
+    "DCL",
+    "DECLARE",
+    "PROC",
+    "PROCEDURE",
+    "OPTIONS",
+    "NAKED",
+    "RETURNS",
+    "DO",
+    "END",
+    "IF",
+    "THEN",
+    "ELSE",
+    "WHILE",
+    "SELECT",
+    "WHEN",
+    "OTHERWISE",
+    "RETURN",
+    "CALL",
+    "GOTO",
+    "BIT",
+    "BYTE",
+    "WORD",
+    "INT",
+    "CHAR",
+    "PTR",
+    "INIT",
+    "TO",
+    "BY",
+    "FIXED",
+    "BASED",
+    "DEFINED",
+    "STATIC",
+    "AUTO",
+    "AUTOMATIC",
+    "EXTERNAL",
+    "REGISTER",
+    "ENTRY",
+    "LABEL",
+    "BUILTIN",
+    "ADDR",
+    "LENGTH",
+    "SUBSTR",
+    "NULL",
+    "BEGIN",
+    "ON",
+    "REVERT",
+    "SIGNAL",
 ];
 
 /// Inline assembly block keyword.
@@ -35,14 +83,31 @@ pub struct SourceEditorProps {
 pub fn source_editor(props: &SourceEditorProps) -> Html {
     let source = props.source.clone();
     let highlighted = highlight_plsw(&source);
+    let pl_edit_enabled = use_state(|| false);
+    let help_open = use_state(|| false);
+    let fullscreen = use_state(|| false);
+    let edit_session = use_state(|| None::<PlEditSession>);
+    let textarea_ref = use_node_ref();
 
     let oninput = {
         let on_change = props.on_change.clone();
+        let edit_session = edit_session.clone();
+        let source = source.clone();
         Callback::from(move |e: InputEvent| {
             if let Some(target) = e.target()
                 && let Some(ta) = target.dyn_ref::<HtmlTextAreaElement>()
             {
-                on_change.emit(ta.value());
+                let next_source = ta.value();
+                if let Some(session) = (*edit_session).clone() {
+                    let cursor = ta.selection_start().ok().flatten().unwrap_or(0) as usize;
+                    edit_session.set(Some(update_session_after_input(
+                        &session,
+                        source.as_str(),
+                        &next_source,
+                        cursor,
+                    )));
+                }
+                on_change.emit(next_source);
             }
         })
     };
@@ -61,15 +126,123 @@ pub fn source_editor(props: &SourceEditorProps) -> Html {
             }
         })
     };
+    let onkeydown = {
+        let pl_edit_enabled = pl_edit_enabled.clone();
+        let on_change = props.on_change.clone();
+        let textarea_ref = textarea_ref.clone();
+        let edit_session = edit_session.clone();
+        Callback::from(move |e: KeyboardEvent| {
+            if let Some(session) = (*edit_session).clone()
+                && (e.key() == "Tab" || (e.key() == "Enter" && !e.ctrl_key()))
+            {
+                e.prevent_default();
+                if let Some(next_session) = advance_session(&session, e.shift_key()) {
+                    let field = next_session.fields[next_session.active];
+                    edit_session.set(Some(next_session));
+                    if let Some(textarea) = textarea_ref.cast::<HtmlTextAreaElement>() {
+                        Timeout::new(0, move || {
+                            let _ = textarea.focus();
+                            let _ = textarea.set_selection_range(field, field);
+                        })
+                        .forget();
+                    }
+                } else {
+                    edit_session.set(None);
+                }
+                return;
+            }
+
+            let expand_key = e.key() == "F4" || (e.ctrl_key() && e.key() == " ");
+            if !expand_key || !*pl_edit_enabled {
+                return;
+            }
+            if let Some(textarea) = textarea_ref.cast::<HtmlTextAreaElement>()
+                && let Some(expansion) =
+                    expand_at_cursor(&textarea, &textarea.value(), PlEditLanguage::Source)
+            {
+                e.prevent_default();
+                edit_session.set(Some(PlEditSession {
+                    fields: expansion.fields.clone(),
+                    active: 0,
+                }));
+                textarea.set_value(&expansion.source);
+                on_change.emit(expansion.source);
+                Timeout::new(0, move || {
+                    let _ = textarea.focus();
+                    let _ = textarea.set_selection_range(expansion.cursor, expansion.cursor);
+                })
+                .forget();
+            }
+        })
+    };
+
+    let toggle_pl_edit = {
+        let pl_edit_enabled = pl_edit_enabled.clone();
+        Callback::from(move |_: MouseEvent| pl_edit_enabled.set(!*pl_edit_enabled))
+    };
+    let toggle_help = {
+        let help_open = help_open.clone();
+        Callback::from(move |_: MouseEvent| help_open.set(!*help_open))
+    };
+    let on_format = {
+        let on_change = props.on_change.clone();
+        let edit_session = edit_session.clone();
+        let textarea_ref = textarea_ref.clone();
+        Callback::from(move |_: MouseEvent| {
+            if let Some(textarea) = textarea_ref.cast::<HtmlTextAreaElement>() {
+                let formatted = format_source(&textarea.value());
+                textarea.set_value(&formatted);
+                edit_session.set(None);
+                on_change.emit(formatted);
+            }
+        })
+    };
+    let toggle_fullscreen = {
+        let fullscreen = fullscreen.clone();
+        Callback::from(move |_: MouseEvent| fullscreen.set(!*fullscreen))
+    };
+
+    let root_class = classes!(
+        "notebook-cell",
+        (*fullscreen).then_some("editor-fullscreen")
+    );
+    let mode_label = if *pl_edit_enabled { "EDIT" } else { "PL/EDIT" };
+    let fullscreen_label = if *fullscreen {
+        "Collapse"
+    } else {
+        "Fullscreen"
+    };
 
     html! {
-        <div class="notebook-cell" id="cell-source">
+        <div class={root_class} id="cell-source">
             <div class="cell-header">
                 <span>{&props.title}</span>
-                if let Some(name) = &props.example_name {
-                    <span class="cell-header-example">{name}</span>
-                }
+                <span class="source-header-actions">
+                    if let Some(name) = &props.example_name {
+                        <span class="cell-header-example">{name}</span>
+                    }
+                    <button class={classes!("editor-action-btn", (*pl_edit_enabled).then_some("active"))}
+                        onclick={toggle_pl_edit}
+                        title="Toggle PL/EDIT hotkey expansion">
+                        {mode_label}
+                    </button>
+                    <button class="editor-action-btn" onclick={toggle_help}
+                        title="Show PL/EDIT expansion keys">
+                        {"?"}
+                    </button>
+                    <button class="editor-action-btn" onclick={on_format}
+                        title="Format PL/SW source indentation">
+                        {"Format"}
+                    </button>
+                    <button class="editor-action-btn" onclick={toggle_fullscreen}
+                        title="Expand or collapse editor">
+                        {fullscreen_label}
+                    </button>
+                </span>
             </div>
+            if *help_open {
+                {render_pl_edit_help(PlEditLanguage::Source)}
+            }
             <div class="cell-content editor-container">
                 <pre class="editor-highlight" ref={pre_ref}>
                     <code>{ Html::from_html_unchecked(AttrValue::from(highlighted)) }</code>
@@ -78,9 +251,11 @@ pub fn source_editor(props: &SourceEditorProps) -> Html {
                     class="editor-textarea"
                     spellcheck="false"
                     autocomplete="off"
+                    ref={textarea_ref}
                     value={source}
                     {oninput}
                     {onscroll}
+                    {onkeydown}
                     readonly={props.readonly}
                 />
             </div>

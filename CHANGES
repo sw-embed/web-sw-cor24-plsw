@@ -1,0 +1,102 @@
+# CHANGES
+
+Reverse chronological summary of every commit in this repository.
+
+Unreleased
+----------
+- Add PL/EDIT, an optional hotkey-driven source editor mode with F4/Ctrl-Space template expansion, Tab/Enter field navigation, help, and fullscreen editing.
+- Add branch-printing demos, an empty default module, and a multi-file project skeleton using .msw include units for DCLs, PROCs, and MACRODEFs.
+- Add this CHANGES file and link it from the application footer.
+- Update README, design, architecture, and product requirements docs for PL/EDIT and the expanded demo set.
+- Add a Format button for PL/SW-style indentation and a generated favicon.
+
+2026-04-29  145be7c  chore: install agentrail briefing block
+-------------------------------------------------------------
+- Install the agentrail briefing block for repository workflow context.
+
+2026-04-10  7c78e3f  feat: add Blog, Discord, YouTube links to footer and README
+---------------------------------------------------------------------------------
+- Add community and project links to the application footer and README.
+
+2026-04-05  106ed62  feat(wizard): allow navigating back to earlier steps
+--------------------------------------------------------------------------
+- Allow completed wizard steps to be revisited from the sidebar.
+
+2026-04-05  c35ca5f  fix(ui): restore octocat, fix record demo, memory dump, line numbers
+------------------------------------------------------------------------------------------
+- Restore the GitHub corner link.
+- Fix the record demo and memory dump display.
+- Add line numbering improvements.
+
+2026-04-05  76378b8  feat(ui): separate wizard steps, 7 demos, emulator dump, sidebar panel
+-------------------------------------------------------------------------------------------
+- Add the wizard-style workflow UI with separate notebook steps.
+- Add bundled demos and emulator dump display.
+- Add the sidebar control panel.
+
+2026-04-04  c0d7964  build: update pages/ with end-to-end pipeline
+-------------------------------------------------------------------
+- Update GitHub Pages build artifacts for the end-to-end pipeline.
+
+2026-04-04  8d56cc7  feat(pipeline): end-to-end compile, assemble, and run via compiler 'c' mode
+-----------------------------------------------------------------------------------------------
+- Wire the browser pipeline from PL/SW source through preprocessing, compilation, assembly, and emulator execution.
+
+2026-04-02  d870faa  build: Add deploy.sh and update .gitignore
+----------------------------------------------------------------
+- Add deployment scripting and ignore-rule updates.
+
+2026-04-02  d66c62e  Revert "build: Add deploy.sh, update .gitignore, remove .agentrail"
+-----------------------------------------------------------------------------------------
+- Revert the prior deployment and ignore-file change set.
+
+2026-04-02  95d5e6c  build: Add deploy.sh, update .gitignore, remove .agentrail
+--------------------------------------------------------------------------------
+- Add deployment scripting and ignore-file updates.
+- Remove agentrail state from the committed tree in that change set.
+
+2026-04-02  e7dd63b  chore: add pages build output and rename workflow to deploy.yml
+------------------------------------------------------------------------------------
+- Commit generated Pages output.
+- Rename the deployment workflow.
+
+2026-04-02  a0c6c01  docs(readme): add project README, GitHub Pages workflow, and build script
+----------------------------------------------------------------------------------------------
+- Add the initial README, Pages workflow, and build script documentation.
+
+2026-04-01  7b34d8b  chore: commit agentrail session and step tracking files
+-----------------------------------------------------------------------------
+- Commit agentrail session and step-tracking artifacts.
+
+2026-03-31  3c8d808  Fix macro preprocessor to handle positional arguments
+----------------------------------------------------------------------------
+- Fix macro preprocessing for positional macro arguments.
+
+2026-03-30  2e4d630  Add collapsible macro expansion view with preprocessor
+-----------------------------------------------------------------------------
+- Add the preprocessor output view with collapsible macro expansion details.
+
+2026-03-30  2be6671  Wire PL/SW compiler pipeline to run on COR24 emulator via WASM
+-----------------------------------------------------------------------------------
+- Integrate the PL/SW compiler pipeline with the COR24 emulator in WASM.
+
+2026-03-30  d1b54f8  Add macro file editor with .msw syntax highlighting and collapsible cells
+-----------------------------------------------------------------------------------------------
+- Add editing support for macro include files.
+- Add .msw syntax highlighting and collapsible macro file panels.
+
+2026-03-30  71c3538  Build wizard-driven 3-column layout with PL/SW source editor
+---------------------------------------------------------------------------------
+- Add the initial wizard-driven layout and PL/SW source editor.
+
+2026-03-30  8bdebbf  Wire cor24-emulator WASM integration with smoke test
+--------------------------------------------------------------------------
+- Integrate the COR24 emulator into the WASM application and add a smoke test.
+
+2026-03-30  0b72a5c  Scaffold Yew/WASM project with Trunk build system
+-----------------------------------------------------------------------
+- Scaffold the browser app with Yew, WASM, and Trunk.
+
+2026-03-30  50a7317  1st
+-----------------------
+- Initial repository commit.

@@ -4,6 +4,11 @@
 //! syntax highlighting for macro-specific keywords (MACRODEF, GEN, REQUIRED, etc.),
 //! and add/remove controls.
 
+use crate::components::pl_edit::{
+    PlEditLanguage, PlEditSession, advance_session, expand_at_cursor, format_source,
+    render_pl_edit_help, update_session_after_input,
+};
+use gloo::timers::callback::Timeout;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlTextAreaElement;
 use yew::prelude::*;
@@ -110,14 +115,16 @@ pub fn macro_editor(props: &MacroEditorProps) -> Html {
                 } else {
                     <div class="macro-file-strip">
                         { for props.files.iter().enumerate().map(|(idx, file)| {
-                            render_macro_file(
-                                idx,
-                                file,
-                                &props.on_change,
-                                &props.on_remove,
-                                &props.on_rename,
-                                &props.on_toggle_collapse,
-                            )
+                            html! {
+                                <MacroFileEditor
+                                    idx={idx}
+                                    file={file.clone()}
+                                    on_change={props.on_change.clone()}
+                                    on_remove={props.on_remove.clone()}
+                                    on_rename={props.on_rename.clone()}
+                                    on_toggle_collapse={props.on_toggle_collapse.clone()}
+                                />
+                            }
                         })}
                     </div>
                 }
@@ -126,33 +133,56 @@ pub fn macro_editor(props: &MacroEditorProps) -> Html {
     }
 }
 
-fn render_macro_file(
+#[derive(Properties, PartialEq)]
+struct MacroFileEditorProps {
     idx: usize,
-    file: &MacroFile,
-    on_change: &Callback<(usize, String)>,
-    on_remove: &Callback<usize>,
-    on_rename: &Callback<(usize, String)>,
-    on_toggle_collapse: &Callback<usize>,
-) -> Html {
-    let collapse_icon = if file.collapsed {
+    file: MacroFile,
+    on_change: Callback<(usize, String)>,
+    on_remove: Callback<usize>,
+    on_rename: Callback<(usize, String)>,
+    on_toggle_collapse: Callback<usize>,
+}
+
+#[function_component(MacroFileEditor)]
+fn macro_file_editor(props: &MacroFileEditorProps) -> Html {
+    let pl_edit_enabled = use_state(|| false);
+    let help_open = use_state(|| false);
+    let fullscreen = use_state(|| false);
+    let edit_session = use_state(|| None::<PlEditSession>);
+    let textarea_ref = use_node_ref();
+
+    let idx = props.idx;
+    let collapse_icon = if props.file.collapsed {
         "\u{25B6}"
     } else {
         "\u{25BC}"
     };
 
     let oninput = {
-        let on_change = on_change.clone();
+        let on_change = props.on_change.clone();
+        let edit_session = edit_session.clone();
+        let old_source = props.file.source.clone();
         Callback::from(move |e: InputEvent| {
             if let Some(target) = e.target()
                 && let Some(ta) = target.dyn_ref::<HtmlTextAreaElement>()
             {
-                on_change.emit((idx, ta.value()));
+                let next_source = ta.value();
+                if let Some(session) = (*edit_session).clone() {
+                    let cursor = ta.selection_start().ok().flatten().unwrap_or(0) as usize;
+                    edit_session.set(Some(update_session_after_input(
+                        &session,
+                        &old_source,
+                        &next_source,
+                        cursor,
+                    )));
+                }
+                on_change.emit((idx, next_source));
             }
         })
     };
 
     let on_name_input = {
-        let on_rename = on_rename.clone();
+        let on_rename = props.on_rename.clone();
         Callback::from(move |e: InputEvent| {
             if let Some(target) = e.target()
                 && let Some(input) = target.dyn_ref::<web_sys::HtmlInputElement>()
@@ -163,38 +193,141 @@ fn render_macro_file(
     };
 
     let on_toggle = {
-        let on_toggle_collapse = on_toggle_collapse.clone();
+        let on_toggle_collapse = props.on_toggle_collapse.clone();
         Callback::from(move |_: MouseEvent| on_toggle_collapse.emit(idx))
     };
 
     let on_remove_click = {
-        let on_remove = on_remove.clone();
+        let on_remove = props.on_remove.clone();
         Callback::from(move |_: MouseEvent| on_remove.emit(idx))
+    };
+    let onkeydown = {
+        let pl_edit_enabled = pl_edit_enabled.clone();
+        let on_change = props.on_change.clone();
+        let textarea_ref = textarea_ref.clone();
+        let edit_session = edit_session.clone();
+        Callback::from(move |e: KeyboardEvent| {
+            if let Some(session) = (*edit_session).clone()
+                && (e.key() == "Tab" || (e.key() == "Enter" && !e.ctrl_key()))
+            {
+                e.prevent_default();
+                if let Some(next_session) = advance_session(&session, e.shift_key()) {
+                    let field = next_session.fields[next_session.active];
+                    edit_session.set(Some(next_session));
+                    if let Some(textarea) = textarea_ref.cast::<HtmlTextAreaElement>() {
+                        Timeout::new(0, move || {
+                            let _ = textarea.focus();
+                            let _ = textarea.set_selection_range(field, field);
+                        })
+                        .forget();
+                    }
+                } else {
+                    edit_session.set(None);
+                }
+                return;
+            }
+
+            let expand_key = e.key() == "F4" || (e.ctrl_key() && e.key() == " ");
+            if !expand_key || !*pl_edit_enabled {
+                return;
+            }
+            if let Some(textarea) = textarea_ref.cast::<HtmlTextAreaElement>()
+                && let Some(expansion) =
+                    expand_at_cursor(&textarea, &textarea.value(), PlEditLanguage::Macro)
+            {
+                e.prevent_default();
+                edit_session.set(Some(PlEditSession {
+                    fields: expansion.fields.clone(),
+                    active: 0,
+                }));
+                textarea.set_value(&expansion.source);
+                on_change.emit((idx, expansion.source));
+                Timeout::new(0, move || {
+                    let _ = textarea.focus();
+                    let _ = textarea.set_selection_range(expansion.cursor, expansion.cursor);
+                })
+                .forget();
+            }
+        })
+    };
+
+    let toggle_pl_edit = {
+        let pl_edit_enabled = pl_edit_enabled.clone();
+        Callback::from(move |_: MouseEvent| pl_edit_enabled.set(!*pl_edit_enabled))
+    };
+    let toggle_help = {
+        let help_open = help_open.clone();
+        Callback::from(move |_: MouseEvent| help_open.set(!*help_open))
+    };
+    let on_format = {
+        let on_change = props.on_change.clone();
+        let edit_session = edit_session.clone();
+        let textarea_ref = textarea_ref.clone();
+        Callback::from(move |_: MouseEvent| {
+            if let Some(textarea) = textarea_ref.cast::<HtmlTextAreaElement>() {
+                let formatted = format_source(&textarea.value());
+                textarea.set_value(&formatted);
+                edit_session.set(None);
+                on_change.emit((idx, formatted));
+            }
+        })
+    };
+    let toggle_fullscreen = {
+        let fullscreen = fullscreen.clone();
+        Callback::from(move |_: MouseEvent| fullscreen.set(!*fullscreen))
+    };
+    let mode_label = if *pl_edit_enabled { "EDIT" } else { "PL/EDIT" };
+    let fullscreen_label = if *fullscreen {
+        "Collapse"
+    } else {
+        "Fullscreen"
     };
 
     html! {
-        <div class="macro-file-cell">
+        <div class={classes!("macro-file-cell", (*fullscreen).then_some("editor-fullscreen"))}>
             <div class="macro-file-header">
                 <button class="macro-collapse-btn" onclick={on_toggle}>
                     {collapse_icon}
                 </button>
                 <input class="macro-name-input" type="text"
-                    value={file.name.clone()}
+                    value={props.file.name.clone()}
                     oninput={on_name_input}
                     spellcheck="false"
                     placeholder="filename.msw" />
+                <button class={classes!("editor-action-btn", (*pl_edit_enabled).then_some("active"))}
+                    onclick={toggle_pl_edit}
+                    title="Toggle PL/EDIT hotkey expansion">
+                    {mode_label}
+                </button>
+                <button class="editor-action-btn" onclick={toggle_help}
+                    title="Show PL/EDIT expansion keys">
+                    {"?"}
+                </button>
+                <button class="editor-action-btn" onclick={on_format}
+                    title="Format PL/SW or .msw indentation">
+                    {"Format"}
+                </button>
+                <button class="editor-action-btn" onclick={toggle_fullscreen}
+                    title="Expand or collapse editor">
+                    {fullscreen_label}
+                </button>
                 <button class="macro-remove-btn" onclick={on_remove_click}
                     title="Remove this macro file">
                     {"\u{00D7}"}
                 </button>
             </div>
-            if !file.collapsed {
+            if *help_open {
+                {render_pl_edit_help(PlEditLanguage::Macro)}
+            }
+            if !props.file.collapsed {
                 <textarea
                     class="macro-file-textarea"
                     spellcheck="false"
                     autocomplete="off"
-                    value={file.source.clone()}
+                    ref={textarea_ref}
+                    value={props.file.source.clone()}
                     {oninput}
+                    {onkeydown}
                 />
             }
         </div>

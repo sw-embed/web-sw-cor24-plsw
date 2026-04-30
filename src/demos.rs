@@ -18,6 +18,22 @@ pub struct Demo {
 
 /// All demos, alphabetized by name.
 pub const DEMOS: &[Demo] = &[
+    // ── An Empty Module ─────────────────────────────────────────────
+    Demo {
+        name: "An Empty Module",
+        description: "No-op MAIN procedure, like IEFBR14",
+        source: r#"/* empty_proc.plsw -- No-op PL/SW program
+ * Equivalent in spirit to IEFBR14: enter MAIN, do nothing, return. */
+
+MAIN: PROC;
+    /* 1. Press the PL/EDIT button. */
+    /* 2. Type IF on the empty line below, then press F4 or Ctrl-Space. */
+
+    /* 3. Use the ? button for PL/EDIT template help. */
+END;
+"#,
+        macros: &[],
+    },
     // ── Chain ────────────────────────────────────────────────────────
     Demo {
         name: "Chain",
@@ -149,6 +165,29 @@ DCL 1 TCB BASED,
 "#,
             },
         ],
+    },
+    // ── Else Print ──────────────────────────────────────────────────
+    Demo {
+        name: "Else Print",
+        description: "IF/ELSE branch demo with false condition",
+        source: r#"/* else_print.plsw -- IF/ELSE demo
+ * Prints the ELSE branch because 2 < 1 is false. */
+
+DCL THEN_MSG(16) CHAR INIT('then path');
+DCL ELSE_MSG(16) CHAR INIT('else path');
+
+MAIN: PROC;
+    IF (2 < 1) THEN DO;
+        CALL UART_PUTS(ADDR(THEN_MSG));
+        CALL UART_PUTCHAR(10);
+    END;
+    ELSE DO;
+        CALL UART_PUTS(ADDR(ELSE_MSG));
+        CALL UART_PUTCHAR(10);
+    END;
+END;
+"#,
+        macros: &[],
     },
     // ── Hello ────────────────────────────────────────────────────────
     Demo {
@@ -330,6 +369,64 @@ END;
 "#,
         }],
     },
+    // ── Multi-file Project ──────────────────────────────────────────
+    Demo {
+        name: "Multi-file Project",
+        description: "Main source with include files for DCLs, PROCs, and MACRODEFs",
+        source: r#"/* multi_file_project.plsw -- Main program
+ * Uses .msw include files as project units:
+ * - project_data.msw: shared DCLs
+ * - project_lib.msw: helper PROC
+ * - project_macros.msw: MACRODEF skeleton
+ */
+
+%INCLUDE project_data;
+%INCLUDE project_lib;
+%INCLUDE project_macros;
+
+MAIN: PROC;
+    DCL SUM INT(24);
+
+    SUM = ADD2(2, 3);
+
+    CALL UART_PUTS(ADDR(APP_MSG));
+    CALL UART_PUTCHAR(SUM + 48);
+    CALL UART_PUTCHAR(10);
+
+    ?EMIT_NOP(COUNT(3));
+END;
+"#,
+        macros: &[
+            DemoMacro {
+                name: "project_data.msw",
+                source: r#"/* project_data.msw -- shared declarations */
+
+DCL APP_MSG(16) CHAR INIT('sum = ');
+"#,
+            },
+            DemoMacro {
+                name: "project_lib.msw",
+                source: r#"/* project_lib.msw -- callable helper library */
+
+ADD2: PROC(A INT(24), B INT(24)) RETURNS(INT(24));
+    RETURN(A + B);
+END;
+"#,
+            },
+            DemoMacro {
+                name: "project_macros.msw",
+                source: r#"/* project_macros.msw -- project macros */
+
+MACRODEF EMIT_NOP;
+    REQUIRED COUNT(expr);
+    GEN DO;
+        'lc      r0,{COUNT}';
+    END;
+END;
+"#,
+            },
+        ],
+    },
     // ── Record ───────────────────────────────────────────────────────
     Demo {
         name: "Record",
@@ -369,6 +466,29 @@ MAIN: PROC;
     CALL UART_PUTS(ADDR(LBL_SUM));
     CALL UART_PUTCHAR(SUM + 48);
     CALL UART_PUTCHAR(10);
+END;
+"#,
+        macros: &[],
+    },
+    // ── Then Print ──────────────────────────────────────────────────
+    Demo {
+        name: "Then Print",
+        description: "IF/ELSE branch demo with true condition",
+        source: r#"/* then_print.plsw -- IF/ELSE demo
+ * Prints the THEN branch because 2 > 1 is true. */
+
+DCL THEN_MSG(16) CHAR INIT('then path');
+DCL ELSE_MSG(16) CHAR INIT('else path');
+
+MAIN: PROC;
+    IF (2 > 1) THEN DO;
+        CALL UART_PUTS(ADDR(THEN_MSG));
+        CALL UART_PUTCHAR(10);
+    END;
+    ELSE DO;
+        CALL UART_PUTS(ADDR(ELSE_MSG));
+        CALL UART_PUTCHAR(10);
+    END;
 END;
 "#,
         macros: &[],

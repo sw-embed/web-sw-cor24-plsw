@@ -29,8 +29,8 @@ cor24-rs C pipeline (web-tc24r fork).
 |  |  +--------------------+  | Stage 7: Emit          | | |
 |  |                          +------------------------+ | |
 |  |  +-- Notebook Cells (scrolling) -----------------+  | |
-|  |  | .plsw source editor                           |  | |
-|  |  | .msw macro file editors                       |  | |
+|  |  | .plsw source editor + optional PL/EDIT mode   |  | |
+|  |  | .msw macro file editors + optional PL/EDIT    |  | |
 |  |  | Preprocessed PL/SW output                     |  | |
 |  |  | COR24 .s assembly output                      |  | |
 |  |  | Assembly listing + Debugger (run/step)         |  | |
@@ -94,6 +94,7 @@ Trunk
   |
   +-- Compiles Rust to WASM via wasm-bindgen
   +-- Bundles index.html + CSS
+  +-- Copies CHANGES as a static asset
   +-- Outputs to dist/
   |
   +-- build-pages.sh: trunk build --release -> rsync to pages/
@@ -144,6 +145,23 @@ The preprocessor stage is surfaced in the UI with collapsible expansion:
 - Expanded output showing what each macro generated
 - Toggle to show/hide expansion per macro invocation
 - GEN block output shown inline with assembler-colored syntax
+
+## PL/EDIT Template Expansion
+
+PL/EDIT is implemented as a Yew editor mode layered onto the existing
+textarea-based source and macro editors. The template registry lives in
+`src/components/pl_edit.rs` and is shared by `.plsw` and `.msw` editor
+surfaces.
+
+At runtime, PL/EDIT:
+
+- Matches the token immediately before the textarea cursor
+- Replaces it with a language-specific skeleton on `F4` or `Ctrl+Space`
+- Records fill-field cursor offsets from `$0`, `$1`, ... template markers
+- Intercepts `Tab` and `Enter` while a fill session is active to move between
+  fields
+- Leaves `Ctrl+Enter` to the browser textarea so users can insert new lines
+- Supports the same behavior in normal and fullscreen editor layouts
 
 ## Pipeline Stage Mapping to UI
 

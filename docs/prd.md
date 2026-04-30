@@ -27,6 +27,8 @@ on the emulator -- all in one page.
 - Edit one or more `.msw` macro definition files
 - Add/remove macro files from the project
 - Macro syntax highlighting (MACRODEF, GEN, expansion directives)
+- Optional PL/EDIT mode for macro boilerplate such as MACRODEF, REQUIRED,
+  OPTIONAL, GEN DO, %INCLUDE, and ?MACRO invocation forms
 
 ### F3: Preprocessing Stage
 - Run PL/SW preprocessor to expand macro invocations
@@ -74,6 +76,15 @@ on the emulator -- all in one page.
 - Completed steps clickable to scroll back
 - Notebook cells revealed progressively as each step completes
 
+### F10: PL/EDIT Template Editing
+- Optional PL/EDIT button on source and macro editors
+- F4 expands the token before the cursor into a compilable PL/SW or .msw
+  skeleton; Ctrl+Space is a browser-friendly fallback
+- Tab or Enter advances between template fill fields
+- Ctrl+Enter inserts a newline while editing block content
+- ? help button lists available expansion keys for the active editor
+- Fullscreen button expands the editor into a large overlay
+
 ## Non-Functional Requirements
 
 ### Performance
@@ -101,6 +112,8 @@ on the emulator -- all in one page.
 - Single .plsw file + multiple .msw files editing
 - Full compile -> assemble -> run pipeline
 - Demo programs with embedded source
+- Starter demos for an empty module, branch examples, and a multi-file project
+  skeleton
 - File upload for .plsw and .msw
 - Assembly listing with debugger (run/step/reset)
 - Register and memory display
