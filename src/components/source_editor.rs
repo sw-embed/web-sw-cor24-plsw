@@ -77,6 +77,8 @@ pub struct SourceEditorProps {
     pub example_name: Option<AttrValue>,
     #[prop_or_default]
     pub readonly: bool,
+    #[prop_or_default]
+    pub on_mass_compile: Option<Callback<MouseEvent>>,
 }
 
 #[function_component(SourceEditor)]
@@ -238,6 +240,12 @@ pub fn source_editor(props: &SourceEditorProps) -> Html {
                         title="Expand or collapse editor">
                         {fullscreen_label}
                     </button>
+                    if let Some(on_mass_compile) = props.on_mass_compile.clone() {
+                        <button class="editor-action-btn" onclick={on_mass_compile}
+                            title="Open Mass Compile">
+                            {"Mass Compile"}
+                        </button>
+                    }
                 </span>
             </div>
             if *help_open {

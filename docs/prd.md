@@ -85,6 +85,23 @@ on the emulator -- all in one page.
 - ? help button lists available expansion keys for the active editor
 - Fullscreen button expands the editor into a large overlay
 
+### F11: Mass Compile
+- Source editor action row button opens a dedicated Mass Compile dialog
+- Users can add multiple rows, each selecting a demo to compile
+- Submit runs queued jobs sequentially
+- Job states show queued, waiting, compiling, assembling, running, complete, or
+  failed
+- Selecting a job shows a detailed log with compiler input, compiler output,
+  generated assembly, assembler object listing or errors, and run output or
+  errors
+- The selected log remains under user control while later jobs compile
+- Closing the dialog leaves submitted jobs running in the background
+- Queued jobs compile browser-side demo drafts or per-job scratch edits without
+  changing the bundled demo source
+- Dirty scratch edits put a queued job in waiting state until the user presses
+  Save
+- Failed jobs do not stop the rest of the queue
+
 ## Non-Functional Requirements
 
 ### Performance

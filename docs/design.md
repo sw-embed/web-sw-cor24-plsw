@@ -43,6 +43,34 @@ Two tabs provide different views of the same compilation:
 +--------------------------------------------------------------------- +
 ```
 
+## Mass Compile Dialog
+
+The source editor action row includes a `Mass Compile` button after
+`Fullscreen`. It opens a modal dialog with a two-panel layout:
+
+- Left panel: before submit, a multi-line form where each row selects one demo;
+  after submit, a job list showing queue and stage state
+- Right panel: log for the selected job, updated while the job runs
+
+Jobs run sequentially through `queued`, `compiling`, `assembling`, `running`,
+and then `complete` or `failed`. Selecting a completed or failed job shows the
+same log retained after execution.
+
+Each job log includes compiler input, compiler output, generated assembly,
+assembler object listing or errors, and run output or run errors when those
+stages are reached.
+
+The selected log is user-controlled; the dialog does not auto-switch to the
+currently running job. During compile, the emulator runs in cooperative batches
+so the left-panel job list remains interactive while the compiler is active.
+
+The dialog can be closed while jobs continue in the background. Draft rows and
+queued jobs expose a source scratch editor. Scratch edits are dirty until saved;
+if a dirty queued job reaches the head of the queue, it changes to `waiting`
+and blocks later jobs until `Save` releases that source to the compiler.
+Otherwise, queued jobs snapshot the current browser-side draft for their demo
+when they enter `compiling`.
+
 ## PL/EDIT Template Mode
 
 PL/EDIT is an optional mode on source and macro editors. The user presses the

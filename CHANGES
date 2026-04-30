@@ -4,6 +4,7 @@ Reverse chronological summary of every commit in this repository.
 
 Unreleased
 ----------
+- Add Mass Compile dialog for queued demo compile/assemble/run jobs with selectable per-job logs, background execution, queued source drafts, per-job scratch edits, waiting-on-dirty-save behavior, and cooperative compile-time yielding for a responsive UI.
 - Add PL/EDIT, an optional hotkey-driven source editor mode with F4/Ctrl-Space template expansion, Tab/Enter field navigation, help, and fullscreen editing.
 - Add branch-printing demos, an empty default module, and a multi-file project skeleton using .msw include units for DCLs, PROCs, and MACRODEFs.
 - Add this CHANGES file and link it from the application footer.

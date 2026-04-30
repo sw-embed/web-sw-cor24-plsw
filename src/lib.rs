@@ -3,7 +3,9 @@ pub mod demos;
 pub mod pipeline;
 pub mod preprocessor;
 
-use components::{MacroEditor, MacroFile, SourceEditor, WizardSidebar, WizardStep};
+use components::{
+    MacroEditor, MacroFile, MassCompileDialog, SourceEditor, WizardSidebar, WizardStep,
+};
 use demos::DEMOS;
 use gloo::file::File;
 use gloo::file::callbacks::FileReader;
@@ -137,7 +139,10 @@ pub fn app() -> Html {
     let default_demo = 0usize;
     let source = use_state(|| DEMOS[default_demo].source.to_string());
     let selected_demo = use_state(|| Some(default_demo));
+    let editing_demo = use_state(|| default_demo);
+    let edited_sources = use_state(|| vec![None::<String>; DEMOS.len()]);
     let current_step = use_state(|| WizardStep::Source);
+    let mass_compile_open = use_state(|| false);
 
     // Macro files state
     let macro_files = use_state(|| {
@@ -147,6 +152,7 @@ pub fn app() -> Html {
             .map(|m| MacroFile::new(m.name.to_string(), m.source.to_string()))
             .collect::<Vec<_>>()
     });
+    let edited_macros = use_state(|| vec![None::<Vec<MacroFile>>; DEMOS.len()]);
 
     // Preprocessor result state
     let preprocess_result = use_state(|| None::<PreprocessResult>);
@@ -163,8 +169,11 @@ pub fn app() -> Html {
     let on_demo_select = {
         let source = source.clone();
         let selected_demo = selected_demo.clone();
+        let editing_demo = editing_demo.clone();
+        let edited_sources = edited_sources.clone();
         let current_step = current_step.clone();
         let macro_files = macro_files.clone();
+        let edited_macros = edited_macros.clone();
         let compile_result = compile_result.clone();
         let run_result = run_result.clone();
         let preprocess_result = preprocess_result.clone();
@@ -173,15 +182,24 @@ pub fn app() -> Html {
                 && let Some(select) = target.dyn_ref::<HtmlSelectElement>()
             {
                 let idx: usize = select.value().parse().unwrap_or(0);
-                source.set(DEMOS[idx].source.to_string());
-                macro_files.set(
-                    DEMOS[idx]
-                        .macros
-                        .iter()
-                        .map(|m| MacroFile::new(m.name.to_string(), m.source.to_string()))
-                        .collect(),
-                );
+                let next_source = edited_sources
+                    .get(idx)
+                    .and_then(|source| source.clone())
+                    .unwrap_or_else(|| DEMOS[idx].source.to_string());
+                let next_macros = edited_macros
+                    .get(idx)
+                    .and_then(|macros| macros.clone())
+                    .unwrap_or_else(|| {
+                        DEMOS[idx]
+                            .macros
+                            .iter()
+                            .map(|m| MacroFile::new(m.name.to_string(), m.source.to_string()))
+                            .collect()
+                    });
+                source.set(next_source);
+                macro_files.set(next_macros);
                 selected_demo.set(Some(idx));
+                editing_demo.set(idx);
                 current_step.set(WizardStep::Source);
                 compile_result.set(None);
                 run_result.set(None);
@@ -201,7 +219,14 @@ pub fn app() -> Html {
     let on_source_change = {
         let source = source.clone();
         let selected_demo = selected_demo.clone();
+        let editing_demo = editing_demo.clone();
+        let edited_sources = edited_sources.clone();
         Callback::from(move |new_source: String| {
+            let mut drafts = (*edited_sources).clone();
+            if let Some(slot) = drafts.get_mut(*editing_demo) {
+                *slot = Some(new_source.clone());
+            }
+            edited_sources.set(drafts);
             source.set(new_source);
             selected_demo.set(None);
         })
@@ -211,6 +236,8 @@ pub fn app() -> Html {
     let on_file_upload = {
         let source = source.clone();
         let selected_demo = selected_demo.clone();
+        let editing_demo = editing_demo.clone();
+        let edited_sources = edited_sources.clone();
         let current_step = current_step.clone();
         let file_reader = _file_reader.clone();
         Callback::from(move |e: Event| {
@@ -222,9 +249,16 @@ pub fn app() -> Html {
                 let file = File::from(file);
                 let source = source.clone();
                 let selected_demo = selected_demo.clone();
+                let editing_demo = editing_demo.clone();
+                let edited_sources = edited_sources.clone();
                 let current_step = current_step.clone();
                 let reader = gloo::file::callbacks::read_as_text(&file, move |result| {
                     if let Ok(text) = result {
+                        let mut drafts = (*edited_sources).clone();
+                        if let Some(slot) = drafts.get_mut(*editing_demo) {
+                            *slot = Some(text.clone());
+                        }
+                        edited_sources.set(drafts);
                         source.set(text);
                         selected_demo.set(None);
                         current_step.set(WizardStep::Source);
@@ -390,43 +424,71 @@ pub fn app() -> Html {
     // Macro editor callbacks
     let on_macro_change = {
         let macro_files = macro_files.clone();
+        let editing_demo = editing_demo.clone();
+        let edited_macros = edited_macros.clone();
         Callback::from(move |(idx, new_source): (usize, String)| {
             let mut files = (*macro_files).clone();
             if let Some(f) = files.get_mut(idx) {
                 f.source = new_source;
             }
+            let mut drafts = (*edited_macros).clone();
+            if let Some(slot) = drafts.get_mut(*editing_demo) {
+                *slot = Some(files.clone());
+            }
+            edited_macros.set(drafts);
             macro_files.set(files);
         })
     };
 
     let on_macro_add = {
         let macro_files = macro_files.clone();
+        let editing_demo = editing_demo.clone();
+        let edited_macros = edited_macros.clone();
         Callback::from(move |()| {
             let mut files = (*macro_files).clone();
             let n = files.len() + 1;
             files.push(MacroFile::new(format!("MACRO{n}.msw"), String::new()));
+            let mut drafts = (*edited_macros).clone();
+            if let Some(slot) = drafts.get_mut(*editing_demo) {
+                *slot = Some(files.clone());
+            }
+            edited_macros.set(drafts);
             macro_files.set(files);
         })
     };
 
     let on_macro_remove = {
         let macro_files = macro_files.clone();
+        let editing_demo = editing_demo.clone();
+        let edited_macros = edited_macros.clone();
         Callback::from(move |idx: usize| {
             let mut files = (*macro_files).clone();
             if idx < files.len() {
                 files.remove(idx);
             }
+            let mut drafts = (*edited_macros).clone();
+            if let Some(slot) = drafts.get_mut(*editing_demo) {
+                *slot = Some(files.clone());
+            }
+            edited_macros.set(drafts);
             macro_files.set(files);
         })
     };
 
     let on_macro_rename = {
         let macro_files = macro_files.clone();
+        let editing_demo = editing_demo.clone();
+        let edited_macros = edited_macros.clone();
         Callback::from(move |(idx, new_name): (usize, String)| {
             let mut files = (*macro_files).clone();
             if let Some(f) = files.get_mut(idx) {
                 f.name = new_name;
             }
+            let mut drafts = (*edited_macros).clone();
+            if let Some(slot) = drafts.get_mut(*editing_demo) {
+                *slot = Some(files.clone());
+            }
+            edited_macros.set(drafts);
             macro_files.set(files);
         })
     };
@@ -444,14 +506,29 @@ pub fn app() -> Html {
 
     let on_macro_upload = {
         let macro_files = macro_files.clone();
+        let editing_demo = editing_demo.clone();
+        let edited_macros = edited_macros.clone();
         Callback::from(move |(name, source): (String, String)| {
             let mut files = (*macro_files).clone();
             files.push(MacroFile::new(name, source));
+            let mut drafts = (*edited_macros).clone();
+            if let Some(slot) = drafts.get_mut(*editing_demo) {
+                *slot = Some(files.clone());
+            }
+            edited_macros.set(drafts);
             macro_files.set(files);
         })
     };
 
     let example_name = selected_demo.as_ref().map(|&idx| DEMOS[idx].name);
+    let open_mass_compile = {
+        let mass_compile_open = mass_compile_open.clone();
+        Callback::from(move |_: MouseEvent| mass_compile_open.set(true))
+    };
+    let close_mass_compile = {
+        let mass_compile_open = mass_compile_open.clone();
+        Callback::from(move |()| mass_compile_open.set(false))
+    };
 
     html! {
         <>
@@ -479,6 +556,12 @@ pub fn app() -> Html {
                 <h1>{"PL/SW"}</h1>
                 <span>{"COR24 Dev"}</span>
             </header>
+            <MassCompileDialog
+                open={*mass_compile_open}
+                on_close={close_mass_compile}
+                edited_sources={(*edited_sources).clone()}
+                edited_macros={(*edited_macros).clone()}
+            />
             // Main 2-column layout: sidebar | notebook
             <div id="app" class="plsw-layout">
                 // Left panel: controls + wizard steps
@@ -529,6 +612,7 @@ pub fn app() -> Html {
                         on_change={on_source_change}
                         title="PL/SW Source"
                         example_name={example_name.map(AttrValue::from)}
+                        on_mass_compile={Some(open_mass_compile)}
                     />
 
                     // Macro editor cell

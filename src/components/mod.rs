@@ -1,10 +1,12 @@
 pub mod macro_editor;
 pub mod macro_expansion;
+pub mod mass_compile;
 pub mod pl_edit;
 pub mod source_editor;
 pub mod wizard;
 
 pub use macro_editor::{MacroEditor, MacroFile};
 pub use macro_expansion::MacroExpansionView;
+pub use mass_compile::MassCompileDialog;
 pub use source_editor::SourceEditor;
 pub use wizard::{WizardSidebar, WizardStep};

@@ -21,9 +21,9 @@ pub const DEMOS: &[Demo] = &[
     // ── An Empty Module ─────────────────────────────────────────────
     Demo {
         name: "An Empty Module",
-        description: "No-op MAIN procedure, like IEFBR14",
+        description: "No-op MAIN procedure, like IEFBR15",
         source: r#"/* empty_proc.plsw -- No-op PL/SW program
- * Equivalent in spirit to IEFBR14: enter MAIN, do nothing, return. */
+ * Equivalent in spirit to IEFBR15: enter MAIN, do nothing, return. */
 
 MAIN: PROC;
     /* 1. Press the PL/EDIT button. */

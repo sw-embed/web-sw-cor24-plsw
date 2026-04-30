@@ -231,6 +231,7 @@
     align-items: center;
     gap: 6px;
     min-width: 0;
+    padding-right: 50px;
 }
 
 .cell-content {
@@ -315,6 +316,246 @@
 .editor-fullscreen .macro-file-textarea {
     flex: 1;
     height: auto;
+}
+
+/* --- Mass Compile dialog --- */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 22px;
+    background: rgba(17, 17, 27, 0.78);
+}
+
+.mass-compile-dialog {
+    width: min(1120px, 96vw);
+    height: min(760px, 92vh);
+    display: flex;
+    flex-direction: column;
+    background: var(--mantle);
+    border: 1px solid var(--surface1);
+    border-radius: 6px;
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+    overflow: hidden;
+}
+
+.mass-compile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: var(--surface0);
+    color: var(--yellow);
+    font-weight: bold;
+}
+
+.mass-compile-body {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 36% 1fr;
+}
+
+.mass-compile-left,
+.mass-compile-log-panel {
+    min-height: 0;
+    overflow: auto;
+}
+
+.mass-compile-left {
+    border-right: 1px solid var(--surface1);
+    background: var(--crust);
+    padding: 10px;
+}
+
+.mass-compile-form,
+.mass-job-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.mass-form-row {
+    display: grid;
+    grid-template-columns: 28px 1fr auto auto;
+    align-items: center;
+    gap: 8px;
+}
+
+.mass-row-num {
+    color: var(--overlay1);
+    text-align: right;
+    font-size: 0.8em;
+}
+
+.mass-compile-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.mass-job-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 4px 8px;
+    padding: 8px;
+    text-align: left;
+    background: var(--surface0);
+    color: var(--text);
+    border: 1px solid var(--surface1);
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: var(--mono);
+}
+
+.mass-job-row:hover,
+.mass-job-row.selected {
+    border-color: var(--blue);
+    background: var(--surface1);
+}
+
+.mass-job-demo {
+    font-weight: bold;
+    color: var(--text);
+}
+
+.mass-job-demo-select {
+    min-width: 0;
+    width: 100%;
+}
+
+.mass-job-state {
+    font-size: 0.72em;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.mass-job-state.queued {
+    color: var(--overlay2);
+}
+
+.mass-job-state.waiting {
+    color: var(--red);
+    animation: waiting-pulse 900ms ease-in-out infinite;
+}
+
+@keyframes waiting-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+}
+
+.mass-job-state.active {
+    color: var(--yellow);
+}
+
+.mass-job-state.complete {
+    color: var(--green);
+}
+
+.mass-job-state.failed {
+    color: var(--red);
+}
+
+.mass-job-summary {
+    grid-column: 1 / -1;
+    color: var(--overlay1);
+    font-size: 0.78em;
+}
+
+.mass-job-submit {
+    grid-column: 3;
+    grid-row: 1;
+}
+
+.mass-job-scratch {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.mass-job-scratch-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.mass-job-scratch-title {
+    color: var(--yellow);
+    font-size: 0.78em;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.mass-job-scratch-editor {
+    width: 100%;
+    min-height: 260px;
+    resize: vertical;
+    padding: 8px;
+    color: var(--text);
+    background: var(--mantle);
+    border: 1px solid var(--surface1);
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.mass-job-scratch-editor:focus {
+    outline: none;
+    border-color: var(--blue);
+}
+
+.mass-compile-log-panel {
+    background: var(--mantle);
+    padding: 10px;
+}
+
+.mass-log {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.mass-log-title {
+    color: var(--yellow);
+    font-weight: bold;
+}
+
+.mass-log-block {
+    border: 1px solid var(--surface1);
+    border-radius: 4px;
+    background: var(--crust);
+}
+
+.mass-log-block summary {
+    padding: 6px 8px;
+    color: var(--blue);
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.mass-log-block pre {
+    margin: 0;
+    padding: 8px;
+    max-height: 220px;
+    overflow: auto;
+    color: var(--text);
+    border-top: 1px solid var(--surface0);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: pre;
+}
+
+.mass-log-empty {
+    color: var(--overlay1);
+    padding: 20px;
+    text-align: center;
 }
 
 /* --- Source editor (textarea + highlight overlay) --- */
