@@ -34,7 +34,12 @@ It follows normal PL/I-style block indentation for:
 - `SELECT`, `WHEN`, and `OTHERWISE`
 - `ASM DO` and `GEN DO`
 - `MACRODEF`
-- Multi-line `DCL` records
+- Multi-line `DCL` records, with continuation indentation based on level
+  numbers such as `1`, `3`, and `5`
+
+For character arrays, PL/SW uses the dimension on the identifier, for example
+`DCL MSG(20) CHAR;` and `3 BAT(8) CHAR;`. Format fixes accidental
+`CHAR(8)` field declarations in DCL lines to that form.
 
 Use Format after expanding templates or moving nested blocks around.
 
@@ -49,7 +54,7 @@ Use Format after expanding templates or moving nested blocks around.
 | `SEL` | SELECT/WHEN dispatch |
 | `WHEN` | WHEN branch |
 | `DCL` | Scalar declaration |
-| `REC` | Level DCL record |
+| `REC` | Level DCL record with 1/3/5 entries |
 | `BASED` | BASED record declaration |
 | `P` | PROC block |
 | `PR` | PROC with RETURNS |
@@ -63,6 +68,10 @@ Use Format after expanding templates or moving nested blocks around.
 ## Macro Triggers
 
 Macro editors also accept all source triggers listed above.
+
+Macro invocation arguments use PL/SW keyword-call syntax:
+`?NAME(KEYWORD(value));`. For example, a macro with `REQUIRED BAR(expr);`
+is invoked as `?FOO(BAR(0));`, not `?FOO(BAR=0);`.
 
 | Trigger | Expansion |
 |---------|-----------|

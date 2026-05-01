@@ -67,12 +67,12 @@ const SOURCE_TEMPLATES: &[PlEditTemplate] = &[
     PlEditTemplate {
         trigger: "REC",
         label: "Level DCL record",
-        body: "DCL 1 $0,\n    3 $1 INT(24),\n    3 $2 CHAR(8);",
+        body: "DCL 1 $0,\n    3 $1 INT(24),\n        5 $2 INT(24),\n        5 $3(8) CHAR;",
     },
     PlEditTemplate {
         trigger: "BASED",
         label: "BASED record DCL",
-        body: "DCL 1 $0 BASED,\n    3 $1 INT(24),\n    3 $2 PTR;",
+        body: "DCL 1 $0 BASED,\n    3 $1 INT(24),\n        5 $2 PTR;",
     },
     PlEditTemplate {
         trigger: "P",
@@ -145,7 +145,7 @@ const MACRO_TEMPLATES: &[PlEditTemplate] = &[
     PlEditTemplate {
         trigger: "INV",
         label: "Macro invocation",
-        body: "?$0(ARG=VALUE);",
+        body: "?$0($1($2));",
     },
 ];
 
@@ -170,30 +170,46 @@ pub fn format_source(source: &str) -> String {
     let mut out = Vec::new();
     let mut indent = 0usize;
     let mut dcl_continuation: Option<usize> = None;
+    let mut record_dcl: Option<(usize, u32)> = None;
 
     for raw_line in source.lines() {
-        let line = normalize_code_line(raw_line);
+        let line = normalize_declaration_line(&normalize_code_line(raw_line));
         if line.is_empty() {
             out.push(String::new());
             continue;
         }
 
         let upper = line.to_ascii_uppercase();
-        let mut line_indent = dcl_continuation.unwrap_or(indent);
+        let mut line_indent = record_dcl
+            .and_then(|(base_indent, base_level)| {
+                leading_level(&line).map(|level| {
+                    let depth = level.saturating_sub(base_level) / 2;
+                    base_indent + depth as usize
+                })
+            })
+            .or(dcl_continuation)
+            .unwrap_or(indent);
 
         if upper.starts_with("END") {
             indent = indent.saturating_sub(1);
             line_indent = indent;
             dcl_continuation = None;
+            record_dcl = None;
         }
 
         out.push(format!("{}{}", "    ".repeat(line_indent), line));
 
-        if upper.starts_with("DCL ") && line.ends_with(',') {
+        if let Some(level) = record_dcl_start(&line)
+            && line.ends_with(',')
+        {
+            record_dcl = Some((indent, level));
+            dcl_continuation = Some(indent + 1);
+        } else if upper.starts_with("DCL ") && line.ends_with(',') {
             dcl_continuation = Some(indent + 1);
         } else if dcl_continuation.is_some() {
             if line.ends_with(';') {
                 dcl_continuation = None;
+                record_dcl = None;
             }
         } else if opens_block(&upper) {
             indent += 1;
@@ -292,6 +308,71 @@ fn collapse_spacing_outside_strings(line: &str) -> String {
     }
 
     out
+}
+
+fn normalize_declaration_line(line: &str) -> String {
+    if line.contains('\'') {
+        return line.to_string();
+    }
+
+    let parts: Vec<&str> = line.split(' ').collect();
+    if parts.len() < 3 {
+        return line.to_string();
+    }
+
+    let (name_idx, type_idx) = if parts[0].eq_ignore_ascii_case("DCL") {
+        if parts.get(1).is_some_and(|part| part.parse::<u32>().is_ok()) {
+            return line.to_string();
+        }
+        (1, 2)
+    } else if parts[0].parse::<u32>().is_ok() {
+        (1, 2)
+    } else {
+        return line.to_string();
+    };
+
+    let Some(type_part) = parts.get(type_idx) else {
+        return line.to_string();
+    };
+    let upper_type = type_part.to_ascii_uppercase();
+    let Some(dim_start) = upper_type.strip_prefix("CHAR(") else {
+        return line.to_string();
+    };
+    let Some(close_idx) = dim_start.find(')') else {
+        return line.to_string();
+    };
+    let dim = &dim_start[..close_idx];
+    if dim.is_empty() || !dim.chars().all(|ch| ch.is_ascii_digit()) {
+        return line.to_string();
+    }
+    let suffix = &type_part["CHAR(".len() + close_idx + 1..];
+    if !matches!(suffix, "" | ";" | ",") {
+        return line.to_string();
+    }
+
+    let mut normalized = parts
+        .iter()
+        .map(|part| (*part).to_string())
+        .collect::<Vec<_>>();
+    let name = normalized[name_idx].clone();
+    if name.contains('(') {
+        return line.to_string();
+    }
+    normalized[name_idx] = format!("{name}({dim})");
+    normalized[type_idx] = format!("CHAR{suffix}");
+    normalized.join(" ")
+}
+
+fn record_dcl_start(line: &str) -> Option<u32> {
+    let mut parts = line.split_whitespace();
+    if !parts.next()?.eq_ignore_ascii_case("DCL") {
+        return None;
+    }
+    parts.next()?.parse().ok()
+}
+
+fn leading_level(line: &str) -> Option<u32> {
+    line.split_whitespace().next()?.parse().ok()
 }
 
 fn remove_space_before_paren(prefix: &str) -> bool {
@@ -551,11 +632,21 @@ mod tests {
 
     #[test]
     fn formats_dcl_continuation() {
-        let source = "DCL 1 POINT,\n3 X INT(24),\n3 Y INT(24);\n";
+        let source = "DCL 1 POINT,\n3 X INT(24),\n5 Y CHAR(8);\n";
 
         assert_eq!(
             format_source(source),
-            "DCL 1 POINT,\n    3 X INT(24),\n    3 Y INT(24);\n"
+            "DCL 1 POINT,\n    3 X INT(24),\n        5 Y(8) CHAR;\n"
+        );
+    }
+
+    #[test]
+    fn formats_record_dcl_inside_proc_by_level() {
+        let source = "MAIN: PROC;\nDCL 1 FOO,\n3 BAR INT(24),\n5 BAT CHAR(8);\nEND;\n";
+
+        assert_eq!(
+            format_source(source),
+            "MAIN: PROC;\n    DCL 1 FOO,\n        3 BAR INT(24),\n            5 BAT(8) CHAR;\nEND;\n"
         );
     }
 

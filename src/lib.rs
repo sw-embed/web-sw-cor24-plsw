@@ -9,7 +9,7 @@ use components::{
 use demos::DEMOS;
 use gloo::file::File;
 use gloo::file::callbacks::FileReader;
-use pipeline::{CompileResult, EmulatorDump, RunResult};
+use pipeline::{AssembleReport, CompileResult, EmulatorDump, RunResult};
 use preprocessor::PreprocessResult;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlInputElement, HtmlSelectElement};
@@ -159,6 +159,7 @@ pub fn app() -> Html {
 
     // Compilation result state
     let compile_result = use_state(|| None::<CompileResult>);
+    let assemble_result = use_state(|| None::<Result<AssembleReport, String>>);
     let run_result = use_state(|| None::<RunResult>);
     let compiling = use_state(|| false);
 
@@ -175,6 +176,7 @@ pub fn app() -> Html {
         let macro_files = macro_files.clone();
         let edited_macros = edited_macros.clone();
         let compile_result = compile_result.clone();
+        let assemble_result = assemble_result.clone();
         let run_result = run_result.clone();
         let preprocess_result = preprocess_result.clone();
         Callback::from(move |e: Event| {
@@ -202,6 +204,7 @@ pub fn app() -> Html {
                 editing_demo.set(idx);
                 current_step.set(WizardStep::Source);
                 compile_result.set(None);
+                assemble_result.set(None);
                 run_result.set(None);
                 preprocess_result.set(None);
                 // Scroll notebook to top
@@ -221,6 +224,10 @@ pub fn app() -> Html {
         let selected_demo = selected_demo.clone();
         let editing_demo = editing_demo.clone();
         let edited_sources = edited_sources.clone();
+        let compile_result = compile_result.clone();
+        let assemble_result = assemble_result.clone();
+        let run_result = run_result.clone();
+        let preprocess_result = preprocess_result.clone();
         Callback::from(move |new_source: String| {
             let mut drafts = (*edited_sources).clone();
             if let Some(slot) = drafts.get_mut(*editing_demo) {
@@ -229,6 +236,10 @@ pub fn app() -> Html {
             edited_sources.set(drafts);
             source.set(new_source);
             selected_demo.set(None);
+            compile_result.set(None);
+            assemble_result.set(None);
+            run_result.set(None);
+            preprocess_result.set(None);
         })
     };
 
@@ -239,6 +250,10 @@ pub fn app() -> Html {
         let editing_demo = editing_demo.clone();
         let edited_sources = edited_sources.clone();
         let current_step = current_step.clone();
+        let compile_result = compile_result.clone();
+        let assemble_result = assemble_result.clone();
+        let run_result = run_result.clone();
+        let preprocess_result = preprocess_result.clone();
         let file_reader = _file_reader.clone();
         Callback::from(move |e: Event| {
             if let Some(target) = e.target()
@@ -252,6 +267,10 @@ pub fn app() -> Html {
                 let editing_demo = editing_demo.clone();
                 let edited_sources = edited_sources.clone();
                 let current_step = current_step.clone();
+                let compile_result = compile_result.clone();
+                let assemble_result = assemble_result.clone();
+                let run_result = run_result.clone();
+                let preprocess_result = preprocess_result.clone();
                 let reader = gloo::file::callbacks::read_as_text(&file, move |result| {
                     if let Ok(text) = result {
                         let mut drafts = (*edited_sources).clone();
@@ -262,6 +281,10 @@ pub fn app() -> Html {
                         source.set(text);
                         selected_demo.set(None);
                         current_step.set(WizardStep::Source);
+                        compile_result.set(None);
+                        assemble_result.set(None);
+                        run_result.set(None);
+                        preprocess_result.set(None);
                     }
                 });
                 file_reader.set(Some(reader));
@@ -295,6 +318,7 @@ pub fn app() -> Html {
         let source = source.clone();
         let macro_files = macro_files.clone();
         let compile_result = compile_result.clone();
+        let assemble_result = assemble_result.clone();
         let run_result = run_result.clone();
         let compiling = compiling.clone();
         let preprocess_result = preprocess_result.clone();
@@ -333,10 +357,13 @@ pub fn app() -> Html {
                         .collect();
 
                     let compile_result = compile_result.clone();
+                    let assemble_result = assemble_result.clone();
                     let inner_step = current_step.clone();
                     let compiling = compiling.clone();
 
                     current_step.set(WizardStep::Compile);
+                    assemble_result.set(None);
+                    run_result.set(None);
 
                     gloo::timers::callback::Timeout::new(100, move || {
                         let result = pipeline::run_compiler(&src, &macros);
@@ -359,8 +386,14 @@ pub fn app() -> Html {
                     return;
                 }
 
-                // Assemble step: just advance (assembly listing is already extracted)
+                // Assemble step: assemble to object listing with machine bytes
                 if next == WizardStep::Assemble {
+                    let report = compile_result
+                        .as_ref()
+                        .and_then(|result| result.assembly.as_ref())
+                        .map(|asm| pipeline::assemble_program(asm))
+                        .unwrap_or_else(|| Err("No assembly generated".to_string()));
+                    assemble_result.set(Some(report));
                     current_step.set(WizardStep::Assemble);
                     gloo::timers::callback::Timeout::new(50, || {
                         if let Some(window) = web_sys::window()
@@ -694,22 +727,38 @@ pub fn app() -> Html {
                     if *current_step >= WizardStep::Assemble {
                         <div class="notebook-cell" id="cell-assemble">
                             <div class="cell-header">
-                                <span>{"Assembly Listing"}</span>
-                                if let Some(ref result) = *compile_result {
-                                    if result.assembly.is_some() {
-                                        <span class="cell-status-ok">{"\u{2713} Generated"}</span>
+                                <span>{"Assembler Object Listing"}</span>
+                                if let Some(ref result) = *assemble_result {
+                                    if let Ok(report) = result {
+                                        <span class="cell-status-ok">
+                                            {format!("\u{2713} {} bytes", report.byte_count)}
+                                        </span>
                                     }
                                 }
                             </div>
                             <div class="cell-content">
-                                if let Some(ref result) = *compile_result {
-                                    if let Some(ref asm) = result.assembly {
-                                        <pre class="pipeline-output assembly-listing">{asm}</pre>
-                                    } else {
+                                if let Some(ref result) = *assemble_result {
+                                    if let Ok(report) = result {
+                                        <pre class="pipeline-output assembly-listing">{&report.listing}</pre>
+                                    } else if let Err(error) = result {
+                                        <div class="compile-error">
+                                            <span>{error}</span>
+                                        </div>
+                                    }
+                                } else if let Some(ref result) = *compile_result {
+                                    if result.assembly.is_none() {
                                         <div class="compile-error">
                                             <span>{"No assembly generated"}</span>
                                         </div>
+                                    } else {
+                                        <div class="notebook-placeholder">
+                                            <span>{"Click Assemble to generate machine-code listing"}</span>
+                                        </div>
                                     }
+                                } else {
+                                    <div class="notebook-placeholder">
+                                        <span>{"Waiting for compilation..."}</span>
+                                    </div>
                                 }
                             </div>
                         </div>

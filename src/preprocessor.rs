@@ -130,7 +130,7 @@ fn parse_macro_defs(source: &str) -> Vec<MacroDef> {
     defs
 }
 
-/// Parse a macro invocation: `?NAME(PARAM=value, PARAM2=value2)` or
+/// Parse a macro invocation: `?NAME(PARAM(value), PARAM2(value2))` or
 /// positional `?NAME(value)`.  Returns (name, positional_args, named_args).
 fn parse_invocation(text: &str) -> Option<(String, Vec<String>, HashMap<String, String>)> {
     let trimmed = text.trim().trim_end_matches(';').trim();
@@ -141,16 +141,18 @@ fn parse_invocation(text: &str) -> Option<(String, Vec<String>, HashMap<String, 
     let rest = &trimmed[1..];
     let paren = rest.find('(')?;
     let name = rest[..paren].trim().to_string();
-    let args_str = rest[paren + 1..].trim_end_matches(')').trim();
+    let args_str = rest[paren + 1..].strip_suffix(')')?.trim();
 
     let mut named = HashMap::new();
     let mut positional = Vec::new();
     if !args_str.is_empty() {
-        for arg in args_str.split(',') {
+        for arg in split_macro_args(args_str) {
             let arg = arg.trim();
             if let Some(eq) = arg.find('=') {
                 let key = arg[..eq].trim().to_string();
                 let val = arg[eq + 1..].trim().to_string();
+                named.insert(key, val);
+            } else if let Some((key, val)) = parse_keyword_arg(arg) {
                 named.insert(key, val);
             } else {
                 positional.push(arg.to_string());
@@ -159,6 +161,43 @@ fn parse_invocation(text: &str) -> Option<(String, Vec<String>, HashMap<String, 
     }
 
     Some((name, positional, named))
+}
+
+fn split_macro_args(args: &str) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let mut start = 0usize;
+    let mut depth = 0usize;
+
+    for (idx, ch) in args.char_indices() {
+        match ch {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                parts.push(&args[start..idx]);
+                start = idx + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    parts.push(&args[start..]);
+    parts
+}
+
+fn parse_keyword_arg(arg: &str) -> Option<(String, String)> {
+    let open = arg.find('(')?;
+    if !arg.ends_with(')') {
+        return None;
+    }
+    let key = arg[..open].trim();
+    if key.is_empty()
+        || !key
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+    {
+        return None;
+    }
+    let val = arg[open + 1..arg.len() - 1].trim();
+    Some((key.to_string(), val.to_string()))
 }
 
 /// Expand a macro invocation given a definition, positional args, and named args.
@@ -338,7 +377,7 @@ END;
 
     #[test]
     fn test_preprocess_with_macros() {
-        let source = "?UART_INIT(PORT=0xFF0100);\nMOVE X, Y;\n";
+        let source = "?UART_INIT(PORT(0xFF0100));\nMOVE X, Y;\n";
         let macros = vec![(
             "UART.msw".into(),
             r#"MACRODEF UART_INIT;
@@ -354,5 +393,26 @@ END;"#
         assert_eq!(result.expansions[0].macro_name, "UART_INIT");
         assert_eq!(result.expansions[0].expanded_lines, vec!["lc r0, 0xFF0100"]);
         assert!(result.output.contains("lc r0, 0xFF0100"));
+    }
+
+    #[test]
+    fn test_preprocess_with_nested_keyword_arg() {
+        let source = "?GREET(MSG(ADDR(_MSG)));\n";
+        let macros = vec![(
+            "greet.msw".into(),
+            r#"MACRODEF GREET;
+  REQUIRED MSG(expr);
+  GEN DO;
+    "la r0, {MSG}";
+  END;
+END;"#
+                .into(),
+        )];
+        let result = preprocess(source, &macros);
+        assert_eq!(result.expansions.len(), 1);
+        assert_eq!(
+            result.expansions[0].expanded_lines,
+            vec!["la r0, ADDR(_MSG)"]
+        );
     }
 }

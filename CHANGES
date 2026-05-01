@@ -4,6 +4,9 @@ Reverse chronological summary of every commit in this repository.
 
 Unreleased
 ----------
+- Show assembler object listings with machine-code bytes in the normal Assemble step.
+- Align PL/EDIT macro invocation templates and browser preprocessing with `?NAME(KEYWORD(value))` syntax.
+- Fix PL/EDIT record DCL templates and Format output for `NAME(dim) CHAR` fields and level-number indentation.
 - Fix source editor caret alignment by using the native textarea as the visible editing surface.
 - Make .msw Format buttons format the macro file state even when the textarea is not mounted.
 - Normalize intra-line spacing before PL/SW and .msw Format indentation decisions.

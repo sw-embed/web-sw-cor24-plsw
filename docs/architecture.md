@@ -87,6 +87,10 @@ Machine code binary + listing + labels
 Output (UART TX), register state, memory view
 ```
 
+The normal Assemble notebook step renders the assembler object's listing, not
+just the compiler-generated `.s` text. Each listing row includes the assembled
+address, emitted machine-code bytes, and original assembly source.
+
 ## WASM Build Pipeline
 
 ```

@@ -43,7 +43,8 @@ on the emulator -- all in one page.
 
 ### F5: Assembly + Execution
 - Assemble the generated `.s` using cor24-emulator's Rust assembler
-- Display assembly listing with addresses and labels
+- Display assembler object listing with addresses, machine-code bytes, and
+  source lines
 - Run/Step/Reset controls for the emulator
 - Register display (r0-r7, PC, condition flag) with change heatmap
 - Memory viewer (sparse hex dump of SRAM and stack)
