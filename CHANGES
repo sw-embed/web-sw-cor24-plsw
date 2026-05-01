@@ -2,23 +2,45 @@
 
 Reverse chronological summary of every commit in this repository.
 
-Unreleased
-----------
+2026-05-01  bcc7be0  Show assembler object listings
+----------------------------------------------------
 - Show assembler object listings with machine-code bytes in the normal Assemble step.
 - Align PL/EDIT macro invocation templates and browser preprocessing with `?NAME(KEYWORD(value))` syntax.
 - Fix PL/EDIT record DCL templates and Format output for `NAME(dim) CHAR` fields and level-number indentation.
+- Update PL/EDIT, PRD, and architecture docs, plus Pages build artifacts.
+
+2026-05-01  f1e3cdc  Fix PL/EDIT editing and formatting
+--------------------------------------------------------
 - Fix source editor caret alignment by using the native textarea as the visible editing surface.
-- Make .msw Format buttons format the macro file state even when the textarea is not mounted.
+- Make .msw Format buttons format the current editor buffer even when the textarea is not mounted.
 - Normalize intra-line spacing before PL/SW and .msw Format indentation decisions.
 - Make the multi-file project demo print numeric PROC results with PRINT_INT and include an ADD3 example.
+- Update README, PL/EDIT docs, PRD, design notes, and Pages build artifacts.
+
+2026-05-01  625c652  Allow source PL/EDIT templates in macro editors
+---------------------------------------------------------------------
 - Allow PL/EDIT source templates such as IF to expand inside .msw macro editors.
+- Update PL/EDIT docs and Pages build artifacts.
+
+2026-04-30  afaab2c  Fix footer CHANGES link
+---------------------------------------------
 - Fix the footer CHANGES link to open the GitHub file view instead of a copied site artifact.
-- Add Mass Compile dialog for queued demo compile/assemble/run jobs with selectable per-job logs, background execution, queued source drafts, per-job scratch edits, waiting-on-dirty-save behavior, and cooperative compile-time yielding for a responsive UI.
+- Remove the copied CHANGES Pages artifact and rebuild Pages output.
+
+2026-04-30  0d5f0c3  Add Mass Compile queue workflow
+-----------------------------------------------------
+- Add Mass Compile dialog for queued demo compile/assemble/run jobs.
+- Add selectable per-job logs with compiler input, compiler output, generated assembly, assembler listing or errors, and run output or errors.
+- Add queued source drafts, per-job scratch edits, waiting-on-dirty-save behavior, and cooperative compile-time yielding.
+- Document the Mass Compile workflow and update README, PRD, design notes, and Pages build artifacts.
+
+2026-04-30  e218481  Add PL/EDIT templates and formatter
+---------------------------------------------------------
 - Add PL/EDIT, an optional hotkey-driven source editor mode with F4/Ctrl-Space template expansion, Tab/Enter field navigation, help, and fullscreen editing.
 - Add branch-printing demos, an empty default module, and a multi-file project skeleton using .msw include units for DCLs, PROCs, and MACRODEFs.
 - Add this CHANGES file and link it from the application footer.
-- Update README, design, architecture, and product requirements docs for PL/EDIT and the expanded demo set.
 - Add a Format button for PL/SW-style indentation and a generated favicon.
+- Update README, design, architecture, and product requirements docs for PL/EDIT and the expanded demo set.
 
 2026-04-29  145be7c  chore: install agentrail briefing block
 -------------------------------------------------------------
