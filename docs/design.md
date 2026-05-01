@@ -20,7 +20,7 @@ Two tabs provide different views of the same compilation:
 |       |          | +----------------------------------------------+ |
 | Demos | [x] Src  | | .plsw Source Editor                          | |
 | Upload|          | | [PL/EDIT] [?] [Fullscreen]                   | |
-| Help  |          | | [textarea with syntax highlighting]           | |
+| Help  |          | | [native textarea editor]                      | |
 | Help  | [x] Macro| +----------------------------------------------+ |
 |       |          | +----------------------------------------------+ |
 |       | [ ] Pre  | | .msw Macro Files                             | |
@@ -91,6 +91,11 @@ counted `DO`, `SELECT/WHEN`, scalar and record `DCL`, `PROC`, `RETURNS`, `ASM
 DO`, `CALL`, `RETURN`, and `GOTO`. The macro template set covers `MACRODEF`,
 `REQUIRED`, `OPTIONAL`, `GEN DO`, `%INCLUDE`, and `?MACRO(...)` invocation
 forms.
+
+The `Format` button is available in both source and `.msw` editors. It formats
+the whole current editor buffer, normalizes common spacing around parameter
+lists and statement terminators, and indents PL/SW and macro blocks such as
+`PROC`, `IF`, `DO`, `SELECT`, `ASM DO`, `GEN DO`, and `MACRODEF`.
 
 ## Catppuccin Mocha Theme Integration
 

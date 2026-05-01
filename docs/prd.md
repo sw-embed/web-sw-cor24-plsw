@@ -17,16 +17,15 @@ on the emulator -- all in one page.
 ## Core Features
 
 ### F1: PL/SW Source Editor
-- Edit a single `.plsw` source file with syntax highlighting
-- PL/SW keywords: DCL, PROC, DO, END, IF, THEN, ELSE, RETURNS, CALL, etc.
-- Highlight macro invocations (`?MACRO(...)`) distinctly
-- Highlight inline assembly blocks (`ASM DO; ... END;`)
-- Highlight GEN blocks within macros
+- Edit a single `.plsw` source file in a native textarea so caret, click, and
+  scroll behavior remain browser-accurate
+- Format PL/SW source indentation and common intra-line spacing
+- Optional PL/EDIT mode for boilerplate expansion
 
 ### F2: Macro File Editor
 - Edit one or more `.msw` macro definition files
 - Add/remove macro files from the project
-- Macro syntax highlighting (MACRODEF, GEN, expansion directives)
+- Format `.msw` macro/procedure files, including the currently edited buffer
 - Optional PL/EDIT mode for macro boilerplate such as MACRODEF, REQUIRED,
   OPTIONAL, GEN DO, %INCLUDE, and ?MACRO invocation forms
 

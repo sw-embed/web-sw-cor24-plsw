@@ -1,8 +1,7 @@
 //! Macro file editor component for .msw files.
 //!
 //! Each .msw file gets its own collapsible notebook cell with a filename header,
-//! syntax highlighting for macro-specific keywords (MACRODEF, GEN, REQUIRED, etc.),
-//! and add/remove controls.
+//! PL/EDIT controls, formatting, and add/remove controls.
 
 use crate::components::pl_edit::{
     PlEditLanguage, PlEditSession, advance_session, expand_at_cursor, format_source,
@@ -262,14 +261,20 @@ fn macro_file_editor(props: &MacroFileEditorProps) -> Html {
     let on_format = {
         let on_change = props.on_change.clone();
         let edit_session = edit_session.clone();
+        let source = props.file.source.clone();
         let textarea_ref = textarea_ref.clone();
         Callback::from(move |_: MouseEvent| {
-            if let Some(textarea) = textarea_ref.cast::<HtmlTextAreaElement>() {
-                let formatted = format_source(&textarea.value());
+            let textarea = textarea_ref.cast::<HtmlTextAreaElement>();
+            let current = textarea
+                .as_ref()
+                .map(HtmlTextAreaElement::value)
+                .unwrap_or_else(|| source.clone());
+            let formatted = format_source(&current);
+            if let Some(textarea) = textarea {
                 textarea.set_value(&formatted);
-                edit_session.set(None);
-                on_change.emit((idx, formatted));
             }
+            edit_session.set(None);
+            on_change.emit((idx, formatted));
         })
     };
     let toggle_fullscreen = {

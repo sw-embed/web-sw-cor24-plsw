@@ -565,10 +565,11 @@
     height: 50vh;
 }
 
-.editor-highlight,
 .editor-textarea {
     position: absolute;
     inset: 0;
+    box-sizing: border-box;
+    display: block;
     margin: 0;
     padding: 12px;
     font-family: var(--mono);
@@ -579,34 +580,22 @@
     overflow: auto;
     tab-size: 2;
     word-wrap: normal;
-}
-
-.editor-highlight {
-    background: var(--mantle);
-    color: var(--text);
-    pointer-events: none;
-    z-index: 1;
-}
-
-.editor-highlight code {
-    font-family: inherit;
-    font-size: inherit;
-    line-height: inherit;
+    overflow-wrap: normal;
 }
 
 .editor-textarea {
-    background: transparent;
-    color: transparent;
+    background: var(--mantle);
+    color: var(--text);
     caret-color: var(--text);
     resize: none;
     outline: none;
-    z-index: 2;
-    -webkit-text-fill-color: transparent;
+    z-index: 1;
+    -webkit-text-fill-color: var(--text);
 }
 
 .editor-textarea::selection {
     background: rgba(137, 180, 250, 0.25);
-    -webkit-text-fill-color: transparent;
+    -webkit-text-fill-color: var(--text);
 }
 
 /* --- Syntax highlighting colors (Catppuccin Mocha) --- */

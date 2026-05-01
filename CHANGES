@@ -4,6 +4,10 @@ Reverse chronological summary of every commit in this repository.
 
 Unreleased
 ----------
+- Fix source editor caret alignment by using the native textarea as the visible editing surface.
+- Make .msw Format buttons format the macro file state even when the textarea is not mounted.
+- Normalize intra-line spacing before PL/SW and .msw Format indentation decisions.
+- Make the multi-file project demo print numeric PROC results with PRINT_INT and include an ADD3 example.
 - Allow PL/EDIT source templates such as IF to expand inside .msw macro editors.
 - Fix the footer CHANGES link to open the GitHub file view instead of a copied site artifact.
 - Add Mass Compile dialog for queued demo compile/assemble/run jobs with selectable per-job logs, background execution, queued source drafts, per-job scratch edits, waiting-on-dirty-save behavior, and cooperative compile-time yielding for a responsive UI.

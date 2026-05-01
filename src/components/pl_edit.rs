@@ -172,13 +172,13 @@ pub fn format_source(source: &str) -> String {
     let mut dcl_continuation: Option<usize> = None;
 
     for raw_line in source.lines() {
-        let trimmed = raw_line.trim();
-        if trimmed.is_empty() {
+        let line = normalize_code_line(raw_line);
+        if line.is_empty() {
             out.push(String::new());
             continue;
         }
 
-        let upper = trimmed.to_ascii_uppercase();
+        let upper = line.to_ascii_uppercase();
         let mut line_indent = dcl_continuation.unwrap_or(indent);
 
         if upper.starts_with("END") {
@@ -187,12 +187,12 @@ pub fn format_source(source: &str) -> String {
             dcl_continuation = None;
         }
 
-        out.push(format!("{}{}", "    ".repeat(line_indent), trimmed));
+        out.push(format!("{}{}", "    ".repeat(line_indent), line));
 
-        if upper.starts_with("DCL ") && trimmed.ends_with(',') {
+        if upper.starts_with("DCL ") && line.ends_with(',') {
             dcl_continuation = Some(indent + 1);
         } else if dcl_continuation.is_some() {
-            if trimmed.ends_with(';') {
+            if line.ends_with(';') {
                 dcl_continuation = None;
             }
         } else if opens_block(&upper) {
@@ -205,6 +205,107 @@ pub fn format_source(source: &str) -> String {
         formatted.push('\n');
     }
     formatted
+}
+
+fn normalize_code_line(raw_line: &str) -> String {
+    let collapsed = collapse_spacing_outside_strings(raw_line.trim());
+    if collapsed.is_empty() {
+        return collapsed;
+    }
+
+    let chars: Vec<char> = collapsed.chars().collect();
+    let mut out = String::with_capacity(collapsed.len());
+    let mut in_string = false;
+    let mut i = 0;
+
+    while i < chars.len() {
+        let ch = chars[i];
+        if ch == '\'' {
+            in_string = !in_string;
+            out.push(ch);
+            i += 1;
+            continue;
+        }
+
+        if !in_string && ch == ' ' {
+            let next = chars.get(i + 1).copied();
+            if matches!(next, Some(',') | Some(';') | Some(')')) {
+                i += 1;
+                continue;
+            }
+            if next == Some('(') && remove_space_before_paren(&out) {
+                i += 1;
+                continue;
+            }
+        }
+
+        if !in_string && ch == '(' {
+            out.push(ch);
+            i += 1;
+            while chars.get(i) == Some(&' ') {
+                i += 1;
+            }
+            continue;
+        }
+
+        if !in_string && ch == ',' {
+            out.push(ch);
+            i += 1;
+            while chars.get(i) == Some(&' ') {
+                i += 1;
+            }
+            if i < chars.len() && !matches!(chars[i], ')' | ';') {
+                out.push(' ');
+            }
+            continue;
+        }
+
+        out.push(ch);
+        i += 1;
+    }
+
+    out
+}
+
+fn collapse_spacing_outside_strings(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut in_string = false;
+    let mut pending_space = false;
+
+    for ch in line.chars() {
+        if ch == '\'' {
+            if pending_space && !out.is_empty() {
+                out.push(' ');
+            }
+            pending_space = false;
+            in_string = !in_string;
+            out.push(ch);
+        } else if !in_string && ch.is_whitespace() {
+            pending_space = true;
+        } else {
+            if pending_space && !out.is_empty() {
+                out.push(' ');
+            }
+            pending_space = false;
+            out.push(ch);
+        }
+    }
+
+    out
+}
+
+fn remove_space_before_paren(prefix: &str) -> bool {
+    let word = prefix
+        .chars()
+        .rev()
+        .take_while(|ch| ch.is_ascii_alphanumeric() || *ch == '_' || *ch == '?')
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect::<String>()
+        .to_ascii_uppercase();
+
+    !matches!(word.as_str(), "IF" | "WHILE" | "WHEN" | "SELECT")
 }
 
 fn opens_block(upper: &str) -> bool {
@@ -455,6 +556,36 @@ mod tests {
         assert_eq!(
             format_source(source),
             "DCL 1 POINT,\n    3 X INT(24),\n    3 Y INT(24);\n"
+        );
+    }
+
+    #[test]
+    fn formats_macro_file_blocks() {
+        let source = "ADD2: PROC(A INT(24), B INT(24)) RETURNS(INT(24));\nRETURN(A + B);\nEND;\nMACRODEF EMIT_NOP;\nREQUIRED COUNT(expr);\nGEN DO;\n'lc      r0,{COUNT}';\nEND;\nEND;\n";
+
+        assert_eq!(
+            format_source(source),
+            "ADD2: PROC(A INT(24), B INT(24)) RETURNS(INT(24));\n    RETURN(A + B);\nEND;\nMACRODEF EMIT_NOP;\n    REQUIRED COUNT(expr);\n    GEN DO;\n        'lc      r0,{COUNT}';\n    END;\nEND;\n"
+        );
+    }
+
+    #[test]
+    fn normalizes_spacing_before_indent_decisions() {
+        let source = "MACRODEF   EMIT_NOP ;\nREQUIRED   COUNT( expr ) ;\nGEN   DO ;\n'lc      r0,{COUNT}';\nEND ;\nEND ;\n";
+
+        assert_eq!(
+            format_source(source),
+            "MACRODEF EMIT_NOP;\n    REQUIRED COUNT(expr);\n    GEN DO;\n        'lc      r0,{COUNT}';\n    END;\nEND;\n"
+        );
+    }
+
+    #[test]
+    fn normalizes_parameter_spacing_without_touching_strings() {
+        let source = "ADD3:   PROC( A INT( 24 ) ,   B INT(24) , C INT(24) ) RETURNS( INT(24) ) ;\nRETURN( A + B + C ) ;\nCALL UART_PUTS( ADDR( APP_MSG ) ) ;\n'keep   generated   spaces';\nEND;\n";
+
+        assert_eq!(
+            format_source(source),
+            "ADD3: PROC(A INT(24), B INT(24), C INT(24)) RETURNS(INT(24));\n    RETURN(A + B + C);\n    CALL UART_PUTS(ADDR(APP_MSG));\n    'keep   generated   spaces';\nEND;\n"
         );
     }
 }

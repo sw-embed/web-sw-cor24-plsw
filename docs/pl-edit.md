@@ -19,8 +19,14 @@ triggers, so control structures such as `IF` expand inside `.msw` files too.
 
 ## Formatting
 
-The `Format` button re-indents the current editor content. It is intentionally
-simple and line based. It follows normal PL/I-style block indentation for:
+The `Format` button formats the whole current editor buffer. In `.msw` editors
+it uses the current textarea contents when the file is open, so unsaved edits
+are formatted in place before being written back to the app state.
+
+The formatter is intentionally simple and line based. It normalizes common
+spacing outside quoted generated strings, including extra spaces before
+semicolons, commas, closing parentheses, and call/procedure parameter lists.
+It follows normal PL/I-style block indentation for:
 
 - `PROC ... END`
 - `IF ... THEN DO; ... END; ELSE DO; ... END;`

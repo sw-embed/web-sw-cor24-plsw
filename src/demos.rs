@@ -376,7 +376,7 @@ END;
         source: r#"/* multi_file_project.plsw -- Main program
  * Uses .msw include files as project units:
  * - project_data.msw: shared DCLs
- * - project_lib.msw: helper PROC
+ * - project_lib.msw: helper PROCs
  * - project_macros.msw: MACRODEF skeleton
  */
 
@@ -386,11 +386,17 @@ END;
 
 MAIN: PROC;
     DCL SUM INT(24);
+    DCL TOTAL INT(24);
 
     SUM = ADD2(2, 3);
+    TOTAL = ADD3(7, 8, 9);
 
     CALL UART_PUTS(ADDR(APP_MSG));
-    CALL UART_PUTCHAR(SUM + 48);
+    CALL PRINT_INT(SUM);
+    CALL UART_PUTCHAR(10);
+
+    CALL UART_PUTS(ADDR(ADD3_MSG));
+    CALL PRINT_INT(TOTAL);
     CALL UART_PUTCHAR(10);
 
     ?EMIT_NOP(COUNT(3));
@@ -402,6 +408,8 @@ END;
                 source: r#"/* project_data.msw -- shared declarations */
 
 DCL APP_MSG(16) CHAR INIT('sum = ');
+DCL ADD3_MSG(16) CHAR INIT('add3 = ');
+DCL DIGITS(12) CHAR;
 "#,
             },
             DemoMacro {
@@ -410,6 +418,34 @@ DCL APP_MSG(16) CHAR INIT('sum = ');
 
 ADD2: PROC(A INT(24), B INT(24)) RETURNS(INT(24));
     RETURN(A + B);
+END;
+
+ADD3: PROC(A INT(24), B INT(24), C INT(24)) RETURNS(INT(24));
+    RETURN(A + B + C);
+END;
+
+/* UART_PUTCHAR writes one character code. Use PRINT_INT for decimal numbers. */
+PRINT_INT: PROC(N INT(24));
+    DCL D INT(24);
+    DCL POS INT(24);
+
+    IF (N = 0) THEN DO;
+        CALL UART_PUTCHAR(48);
+        RETURN;
+    END;
+
+    POS = 0;
+    DO WHILE (N > 0);
+        D = N / 10;
+        DIGITS(POS) = N - D * 10 + 48;
+        N = D;
+        POS = POS + 1;
+    END;
+
+    DO WHILE (POS > 0);
+        POS = POS - 1;
+        CALL UART_PUTCHAR(DIGITS(POS));
+    END;
 END;
 "#,
             },

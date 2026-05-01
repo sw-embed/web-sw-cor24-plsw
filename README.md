@@ -14,9 +14,9 @@ Built with Rust, Yew 0.21, and Trunk. Runs entirely in the browser as a WASM app
 
 ## Features
 
-- PL/SW source editor with .plsw syntax highlighting
-- Optional PL/EDIT mode with F4/Ctrl-Space template expansion, Tab/Enter field navigation, ? help, and fullscreen editing
-- Macro file editor with .msw syntax highlighting and collapsible cells
+- PL/SW source editor with reliable native-textarea editing
+- Optional PL/EDIT mode with F4/Ctrl-Space template expansion, Tab/Enter field navigation, ? help, fullscreen editing, and source formatting
+- Macro file editor with collapsible `.msw` cells, PL/EDIT expansion, and formatting
 - End-to-end compilation pipeline: edit -> preprocess -> compile -> assemble -> run
 - Compiler runs on COR24 emulator in WASM via 'c' (compile) mode
 - Generated assembly listing and program execution with UART output

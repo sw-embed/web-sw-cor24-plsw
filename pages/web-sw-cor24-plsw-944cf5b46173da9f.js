@@ -321,14 +321,6 @@ function __wbg_get_imports() {
         __wbg_scrollIntoView_8e28a0577a9d25ee: function(arg0) {
             arg0.scrollIntoView();
         },
-        __wbg_scrollLeft_9b0deebea30530f2: function(arg0) {
-            const ret = arg0.scrollLeft;
-            return ret;
-        },
-        __wbg_scrollTop_5b42f122f9c262d4: function(arg0) {
-            const ret = arg0.scrollTop;
-            return ret;
-        },
         __wbg_selectionEnd_9b3a609ad5b57e42: function() { return handleError(function (arg0) {
             const ret = arg0.selectionEnd;
             return isLikeNone(ret) ? 0x100000001 : (ret) >>> 0;
@@ -378,12 +370,6 @@ function __wbg_get_imports() {
         },
         __wbg_set_passive_12da418f5f07d300: function(arg0, arg1) {
             arg0.passive = arg1 !== 0;
-        },
-        __wbg_set_scrollLeft_1e66c3148bfe4603: function(arg0, arg1) {
-            arg0.scrollLeft = arg1;
-        },
-        __wbg_set_scrollTop_27c6ecb8c94ff677: function(arg0, arg1) {
-            arg0.scrollTop = arg1;
         },
         __wbg_set_scrollTop_3a603846bfda3976: function(arg0, arg1) {
             arg0.scrollTop = arg1;
