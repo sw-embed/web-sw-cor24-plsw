@@ -156,6 +156,16 @@ pub fn templates_for(language: PlEditLanguage) -> &'static [PlEditTemplate] {
     }
 }
 
+pub fn expansion_templates_for(language: PlEditLanguage) -> Vec<&'static PlEditTemplate> {
+    match language {
+        PlEditLanguage::Source => SOURCE_TEMPLATES.iter().collect(),
+        PlEditLanguage::Macro => MACRO_TEMPLATES
+            .iter()
+            .chain(SOURCE_TEMPLATES.iter())
+            .collect(),
+    }
+}
+
 pub fn format_source(source: &str) -> String {
     let mut out = Vec::new();
     let mut indent = 0usize;
@@ -234,8 +244,8 @@ pub fn expand_source_at(
         return None;
     }
 
-    let template = templates_for(language)
-        .iter()
+    let template = expansion_templates_for(language)
+        .into_iter()
         .find(|template| template.trigger == trigger)?;
 
     let indent = line_indent_before(source, start);
@@ -366,7 +376,7 @@ pub fn render_pl_edit_help(language: PlEditLanguage) -> Html {
             <div class="pl-edit-help-title">{"PL/EDIT Expansions"}</div>
             <div class="pl-edit-help-hotkeys">{"F4 expands. Ctrl+Space also expands. Tab or Enter advances fields. Ctrl+Enter inserts a line."}</div>
             <div class="pl-edit-help-grid">
-                { for templates_for(language).iter().map(|template| html! {
+                { for expansion_templates_for(language).into_iter().map(|template| html! {
                     <>
                         <span class="pl-edit-trigger">{template.trigger}</span>
                         <span>{template.label}</span>
@@ -414,6 +424,17 @@ mod tests {
         );
         assert_eq!(expansion.cursor, 9);
         assert_eq!(expansion.fields, vec![9, 24, 53]);
+    }
+
+    #[test]
+    fn expands_source_control_flow_inside_macro_file() {
+        let expansion = expand_source_at("IF", 2, 2, PlEditLanguage::Macro).unwrap();
+
+        assert_eq!(
+            expansion.source,
+            "IF () THEN DO;\n    \nEND;\nELSE DO;\n    \nEND;"
+        );
+        assert_eq!(expansion.cursor, 4);
     }
 
     #[test]

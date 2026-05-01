@@ -13,7 +13,9 @@ forms easy to remember.
 5. Use `Shift+Tab` to move to the previous field.
 6. Use `Ctrl+Enter` to insert a newline while editing block content.
 
-The `?` button opens the available trigger list for the active editor.
+The `?` button opens the available trigger list for the active editor. Macro
+editors include both macro boilerplate triggers and normal PL/SW source
+triggers, so control structures such as `IF` expand inside `.msw` files too.
 
 ## Formatting
 
@@ -53,6 +55,8 @@ Use Format after expanding templates or moving nested blocks around.
 | `G` | GOTO statement |
 
 ## Macro Triggers
+
+Macro editors also accept all source triggers listed above.
 
 | Trigger | Expansion |
 |---------|-----------|
