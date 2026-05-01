@@ -793,7 +793,7 @@ pub fn app() -> Html {
                 <span class="footer-sep">{"\u{00b7}"}</span>
                 <a href="https://www.youtube.com/@SoftwareWrighter" target="_blank">{"YouTube"}</a>
                 <span class="footer-sep">{"\u{00b7}"}</span>
-                <a href="/web-sw-cor24-plsw/CHANGES" target="_blank">{"CHANGES"}</a>
+                <a href="https://github.com/sw-embed/web-sw-cor24-plsw/blob/main/CHANGES" target="_blank">{"CHANGES"}</a>
                 <span class="footer-sep">{"\u{00b7}"}</span>
                 <span>{ format!("{} \u{00b7} {} \u{00b7} {}",
                     env!("BUILD_HOST"),
