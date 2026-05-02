@@ -474,6 +474,31 @@ END;
 DCL LBL_SUM(8) CHAR INIT('Sum: ');
 DCL LBL_X(8) CHAR INIT('X: ');
 DCL LBL_Y(8) CHAR INIT('Y: ');
+DCL DIGITS(12) CHAR;
+
+/* Print a non-negative integer to UART as decimal digits */
+PRINT_INT: PROC(N INT);
+    DCL D INT;
+    DCL POS INT;
+
+    IF (N = 0) THEN DO;
+        CALL UART_PUTCHAR(48);
+        RETURN;
+    END;
+
+    POS = 0;
+    DO WHILE (N > 0);
+        D = N / 10;
+        DIGITS(POS) = N - D * 10 + 48;
+        N = D;
+        POS = POS + 1;
+    END;
+
+    DO WHILE (POS > 0);
+        POS = POS - 1;
+        CALL UART_PUTCHAR(DIGITS(POS));
+    END;
+END;
 
 MAIN: PROC;
     DCL 1 POINT,
@@ -490,17 +515,17 @@ MAIN: PROC;
     P = ADDR(POINT);
     SUM = P->X + P->Y;
 
-    /* Print values as ASCII digits */
+    /* Print values as decimal digits */
     CALL UART_PUTS(ADDR(LBL_X));
-    CALL UART_PUTCHAR(P->X + 48);
+    CALL PRINT_INT(P->X);
     CALL UART_PUTCHAR(10);
 
     CALL UART_PUTS(ADDR(LBL_Y));
-    CALL UART_PUTCHAR(P->Y + 48);
+    CALL PRINT_INT(P->Y);
     CALL UART_PUTCHAR(10);
 
     CALL UART_PUTS(ADDR(LBL_SUM));
-    CALL UART_PUTCHAR(SUM + 48);
+    CALL PRINT_INT(SUM);
     CALL UART_PUTCHAR(10);
 END;
 "#,
