@@ -2,6 +2,11 @@
 
 Reverse chronological summary of every commit in this repository.
 
+2026-05-01  a2b152c  Print Record demo values as decimal digits
+---------------------------------------------------------------
+- Replace the `+48` single-digit shortcut in the Record demo with a `PRINT_INT` proc that emits a divide-by-10 digit buffer, so `SUM` prints as `10` instead of `:` when `X + Y` exceeds 9.
+- Rebuild Pages output.
+
 2026-05-01  bcc7be0  Show assembler object listings
 ----------------------------------------------------
 - Show assembler object listings with machine-code bytes in the normal Assemble step.
