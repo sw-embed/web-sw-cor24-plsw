@@ -2,6 +2,13 @@
 
 Reverse chronological summary of every commit in this repository.
 
+2026-05-08  ebcbe02  Update demos and runtime to latest sw-cor24-plsw
+---------------------------------------------------------------------
+- Add the upstream Define, Select, Select Nested, and five Storage allocator demos (Basic, Coalesce, Double Free, OOM, Size Mismatch).
+- Update Loop to print 1-10 with PRINT_INT and Record to use inline `ADDR('label = ')` strings to match the latest upstream sources.
+- Switch the Assembler import to the new `cor24-assembler` crate (the emulator crate no longer re-exports it after the recent split).
+- Rebuild Pages output.
+
 2026-05-03  9469440  Fix IEFBR14 reference in empty module demo
 -------------------------------------------------------------
 - Restore the correct IEFBR14 spelling in the Empty Module demo's description and source comment.
