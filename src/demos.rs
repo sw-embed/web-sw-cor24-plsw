@@ -753,7 +753,11 @@ END;
  * Declares a multi-level record, fills fields, takes address,
  * accesses fields via pointer dereference.
  * Demonstrates: level-based DCL, record field access, ADDR(),
- * pointer dereference (P->field), arithmetic on fields. */
+ * pointer dereference (P->field), arithmetic on fields.
+ *
+ * Note: UART_PUTS is puts-style (auto-newline), so we use a
+ * small PRINT_STR helper to print the label without one when we
+ * want "label value" on a single line. */
 
 DCL LBL_X   (8) CHAR INIT('X = ');
 DCL LBL_Y   (8) CHAR INIT('Y = ');
@@ -761,6 +765,28 @@ DCL LBL_PX  (8) CHAR INIT('P->X = ');
 DCL LBL_PY  (8) CHAR INIT('P->Y = ');
 DCL LBL_SUM (8) CHAR INIT('Sum = ');
 DCL DIGITS (12) CHAR;
+
+/* BASED template for byte-by-byte iteration through a buffer */
+DCL 1 _BYTE_AT BASED,
+    3 _BVAL BYTE;
+DCL _BP PTR;
+
+/* Print a NUL-terminated string at BUF via UART_PUTCHAR. Unlike
+ * UART_PUTS, this does NOT append a trailing newline. */
+PRINT_STR: PROC(BUF INT);
+    DCL POS INT;
+    DCL CH BYTE;
+
+    POS = BUF;
+    _BP = POS;
+    CH = _BP->_BVAL;
+    DO WHILE (CH != 0);
+        CALL UART_PUTCHAR(CH);
+        POS = POS + 1;
+        _BP = POS;
+        CH = _BP->_BVAL;
+    END;
+END;
 
 /* Print an integer to UART as decimal digits */
 PRINT_INT: PROC(N INT);
@@ -797,28 +823,28 @@ MAIN: PROC;
     POINT.X = 100;
     POINT.Y = 200;
 
-    /* Print field values */
-    CALL UART_PUTS(ADDR(LBL_X));
+    /* Print field values: label without newline + value + newline */
+    CALL PRINT_STR(ADDR(LBL_X));
     CALL PRINT_INT(POINT.X);
     CALL UART_PUTCHAR(10);
 
-    CALL UART_PUTS(ADDR(LBL_Y));
+    CALL PRINT_STR(ADDR(LBL_Y));
     CALL PRINT_INT(POINT.Y);
     CALL UART_PUTCHAR(10);
 
     /* Take address, access via pointer */
     P = ADDR(POINT);
 
-    CALL UART_PUTS(ADDR(LBL_PX));
+    CALL PRINT_STR(ADDR(LBL_PX));
     CALL PRINT_INT(P->X);
     CALL UART_PUTCHAR(10);
 
-    CALL UART_PUTS(ADDR(LBL_PY));
+    CALL PRINT_STR(ADDR(LBL_PY));
     CALL PRINT_INT(P->Y);
     CALL UART_PUTCHAR(10);
 
     /* Compute sum via pointer */
-    CALL UART_PUTS(ADDR(LBL_SUM));
+    CALL PRINT_STR(ADDR(LBL_SUM));
     CALL PRINT_INT(P->X + P->Y);
     CALL UART_PUTCHAR(10);
 END;
