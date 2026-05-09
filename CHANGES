@@ -2,6 +2,12 @@
 
 Reverse chronological summary of every commit in this repository.
 
+2026-05-09  8a8b9c9  Fix Record demo and strip boot prompt from compiler output
+-------------------------------------------------------------------------------
+- Rewrite the Record demo to use pre-declared CHAR labels (`LBL_X`, `LBL_Y`, `LBL_PX`, `LBL_PY`, `LBL_SUM`) instead of `ADDR('literal')`; the latest compiler rejects inline string literals with `ADDR requires a variable, field, or array element`.
+- Clear the displayed compiler output once the boot prompt is detected so the "Compiler Output" cell starts with the actual compile dialog instead of the `Enter suite # (0-34), 'a' for all, 'c' to compile, or 'r' for REPL:` banner.
+- Rebuild Pages output.
+
 2026-05-09  cb96d0b  Adopt PL/I-flavored macros and raise emulator instruction limits
 -------------------------------------------------------------------------------------
 - Adopt the PL/I-flavored space-separated macro invocation form (`?NAME KEY(val) KEY(val);` -- no outer parens) across all macro-using demos: Hello Macro, Macro, Multi-file Project, and the five Storage demos.
