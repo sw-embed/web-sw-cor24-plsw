@@ -755,7 +755,12 @@ END;
  * Demonstrates: level-based DCL, record field access, ADDR(),
  * pointer dereference (P->field), arithmetic on fields. */
 
-DCL DIGITS(12) CHAR;
+DCL LBL_X   (8) CHAR INIT('X = ');
+DCL LBL_Y   (8) CHAR INIT('Y = ');
+DCL LBL_PX  (8) CHAR INIT('P->X = ');
+DCL LBL_PY  (8) CHAR INIT('P->Y = ');
+DCL LBL_SUM (8) CHAR INIT('Sum = ');
+DCL DIGITS (12) CHAR;
 
 /* Print an integer to UART as decimal digits */
 PRINT_INT: PROC(N INT);
@@ -793,27 +798,27 @@ MAIN: PROC;
     POINT.Y = 200;
 
     /* Print field values */
-    CALL UART_PUTS(ADDR('X = '));
+    CALL UART_PUTS(ADDR(LBL_X));
     CALL PRINT_INT(POINT.X);
     CALL UART_PUTCHAR(10);
 
-    CALL UART_PUTS(ADDR('Y = '));
+    CALL UART_PUTS(ADDR(LBL_Y));
     CALL PRINT_INT(POINT.Y);
     CALL UART_PUTCHAR(10);
 
     /* Take address, access via pointer */
     P = ADDR(POINT);
 
-    CALL UART_PUTS(ADDR('P->X = '));
+    CALL UART_PUTS(ADDR(LBL_PX));
     CALL PRINT_INT(P->X);
     CALL UART_PUTCHAR(10);
 
-    CALL UART_PUTS(ADDR('P->Y = '));
+    CALL UART_PUTS(ADDR(LBL_PY));
     CALL PRINT_INT(P->Y);
     CALL UART_PUTCHAR(10);
 
     /* Compute sum via pointer */
-    CALL UART_PUTS(ADDR('Sum = '));
+    CALL UART_PUTS(ADDR(LBL_SUM));
     CALL PRINT_INT(P->X + P->Y);
     CALL UART_PUTCHAR(10);
 END;

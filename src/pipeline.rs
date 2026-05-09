@@ -177,6 +177,10 @@ pub fn run_compiler(source: &str, macro_sources: &[(String, String)]) -> Compile
         }
     }
 
+    // Drop the boot banner + REPL prompt from the displayed output: the
+    // user only wants to see what the compiler said about *their* source.
+    all_output.clear();
+
     let input = compiler_input(source, macro_sources);
 
     let mut rx_queue: VecDeque<u8> = input.bytes().collect();
@@ -275,6 +279,9 @@ pub async fn run_compiler_cooperative(
             };
         }
     }
+
+    // Drop the boot banner + REPL prompt from the displayed output.
+    all_output.clear();
 
     let input = compiler_input(source, macro_sources);
     let mut rx_queue: VecDeque<u8> = input.bytes().collect();
