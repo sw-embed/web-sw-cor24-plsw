@@ -2,6 +2,11 @@
 
 Reverse chronological summary of every commit in this repository.
 
+2026-05-09  086c4ed  Print Record demo label and value on the same line
+-----------------------------------------------------------------------
+- Add a `PRINT_STR` helper to the Record demo that walks a NUL-terminated buffer via `UART_PUTCHAR` (no auto-newline) and use it for the label strings, so each row reads `X = 100` / `Y = 200` / `P->X = 100` / `P->Y = 200` / `Sum = 300` instead of splitting label and value across two lines.
+- Rebuild Pages output.
+
 2026-05-09  8a8b9c9  Fix Record demo and strip boot prompt from compiler output
 -------------------------------------------------------------------------------
 - Rewrite the Record demo to use pre-declared CHAR labels (`LBL_X`, `LBL_Y`, `LBL_PX`, `LBL_PY`, `LBL_SUM`) instead of `ADDR('literal')`; the latest compiler rejects inline string literals with `ADDR requires a variable, field, or array element`.
