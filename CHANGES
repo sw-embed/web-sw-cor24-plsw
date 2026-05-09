@@ -2,6 +2,14 @@
 
 Reverse chronological summary of every commit in this repository.
 
+2026-05-09  cb96d0b  Adopt PL/I-flavored macros and raise emulator instruction limits
+-------------------------------------------------------------------------------------
+- Adopt the PL/I-flavored space-separated macro invocation form (`?NAME KEY(val) KEY(val);` -- no outer parens) across all macro-using demos: Hello Macro, Macro, Multi-file Project, and the five Storage demos.
+- Switch the Storage demos to the new `?GETMAIN`/`?FREEMAIN` macros that ship in upstream `_plsw_storage.msw`, and embed the updated include with the macros alongside the procedure implementation.
+- Teach the web preprocessor to parse both the new invocation form and `MACRODEF` bodies that are direct PL/SW source templates (no `GEN DO;` block); legacy `?NAME(args)` invocations remain accepted.
+- Raise the compile-step instruction ceiling from 500M to 2B and the run-step ceiling from 10M to 100M. Storage demos compile in ~700M cor24 instructions in the browser, well above the prior 500M cap; the lower ceiling was the actual cause of the "compilation exceeded instruction limit" failures.
+- Rebuild Pages output.
+
 2026-05-08  ebcbe02  Update demos and runtime to latest sw-cor24-plsw
 ---------------------------------------------------------------------
 - Add the upstream Define, Select, Select Nested, and five Storage allocator demos (Basic, Coalesce, Double Free, OOM, Size Mismatch).
