@@ -16,6 +16,163 @@ pub struct Demo {
     pub macros: &'static [DemoMacro],
 }
 
+/// PL/SW free-list heap allocator runtime, shared by every Storage demo.
+const PLSW_STORAGE_MSW: &str = r#"/* _plsw_storage.msw -- PL/SW heap allocator runtime
+ *
+ * Provides _PLSW_GETMAIN / _PLSW_FREEMAIN procedures backed by
+ * a free-list allocator over a statically-declared heap region.
+ *
+ *   %INCLUDE _plsw_storage;       -- entry module: impl + heap
+ *
+ *   %DEFINE PLSW_HEAP_SIZE 32768; -- override default 64KB heap
+ *   %INCLUDE _plsw_storage;
+ *
+ * Calling convention:
+ *   P  = _PLSW_GETMAIN(N);            P=0 on OOM
+ *   RC = _PLSW_FREEMAIN(P, N);        RC=0 on success,
+ *                                     1=double-free/invalid,
+ *                                     2=size mismatch
+ */
+
+%IF DEFINED(PLSW_HEAP_SIZE);
+%ELSE;
+%DEFINE PLSW_HEAP_SIZE 65536;
+%ENDIF;
+
+%DEFINE _PLSW_ALLOC_MAGIC 16777215;
+
+DCL 1 _PLSW_BLOCK BASED,
+  3 _PLSW_BLOCK_SIZE INT,
+  3 _PLSW_BLOCK_NEXT INT;
+DCL _PLSW_BP PTR;
+
+%IF DEFINED(PLSW_STORAGE_HEADERS_ONLY);
+%ELSE;
+
+DCL _PLSW_HEAP_BUF(PLSW_HEAP_SIZE) BYTE;
+DCL _PLSW_FREE_HEAD INT INIT(0);
+DCL _PLSW_INIT_DONE INT INIT(0);
+
+_PLSW_INIT: PROC;
+    _PLSW_FREE_HEAD = ADDR(_PLSW_HEAP_BUF);
+    _PLSW_BP = _PLSW_FREE_HEAD;
+    _PLSW_BP->_PLSW_BLOCK_SIZE = PLSW_HEAP_SIZE;
+    _PLSW_BP->_PLSW_BLOCK_NEXT = 0;
+    _PLSW_INIT_DONE = 1;
+END;
+
+_PLSW_GETMAIN: PROC(SIZE INT) RETURNS(INT);
+    DCL NEEDED INT;
+    DCL PREV INT;
+    DCL CURR INT;
+    DCL CURR_SIZE INT;
+    DCL CURR_NEXT INT;
+    DCL NEW_FREE INT;
+
+    IF (_PLSW_INIT_DONE = 0) THEN
+        CALL _PLSW_INIT();
+
+    NEEDED = SIZE + 6;
+
+    PREV = 0;
+    CURR = _PLSW_FREE_HEAD;
+    DO WHILE (CURR != 0);
+        _PLSW_BP = CURR;
+        CURR_SIZE = _PLSW_BP->_PLSW_BLOCK_SIZE;
+        CURR_NEXT = _PLSW_BP->_PLSW_BLOCK_NEXT;
+        IF (CURR_SIZE >= NEEDED) THEN DO;
+            IF (CURR_SIZE >= NEEDED + 7) THEN DO;
+                NEW_FREE = CURR + NEEDED;
+                _PLSW_BP = NEW_FREE;
+                _PLSW_BP->_PLSW_BLOCK_SIZE = CURR_SIZE - NEEDED;
+                _PLSW_BP->_PLSW_BLOCK_NEXT = CURR_NEXT;
+                _PLSW_BP = CURR;
+                _PLSW_BP->_PLSW_BLOCK_SIZE = NEEDED;
+                _PLSW_BP->_PLSW_BLOCK_NEXT = _PLSW_ALLOC_MAGIC;
+                IF (PREV = 0) THEN
+                    _PLSW_FREE_HEAD = NEW_FREE;
+                ELSE DO;
+                    _PLSW_BP = PREV;
+                    _PLSW_BP->_PLSW_BLOCK_NEXT = NEW_FREE;
+                END;
+            END;
+            ELSE DO;
+                _PLSW_BP = CURR;
+                _PLSW_BP->_PLSW_BLOCK_NEXT = _PLSW_ALLOC_MAGIC;
+                IF (PREV = 0) THEN
+                    _PLSW_FREE_HEAD = CURR_NEXT;
+                ELSE DO;
+                    _PLSW_BP = PREV;
+                    _PLSW_BP->_PLSW_BLOCK_NEXT = CURR_NEXT;
+                END;
+            END;
+            RETURN(CURR + 6);
+        END;
+        PREV = CURR;
+        CURR = CURR_NEXT;
+    END;
+    RETURN(0);
+END;
+
+_PLSW_FREEMAIN: PROC(USERADDR INT, LEN INT) RETURNS(INT);
+    DCL BLOCK INT;
+    DCL EXPECTED INT;
+    DCL PREV INT;
+    DCL CURR INT;
+    DCL BLK_SIZE INT;
+    DCL NEXT_AFTER INT;
+    DCL NEXT_SIZE INT;
+
+    BLOCK = USERADDR - 6;
+    EXPECTED = LEN + 6;
+
+    _PLSW_BP = BLOCK;
+    IF (_PLSW_BP->_PLSW_BLOCK_NEXT != _PLSW_ALLOC_MAGIC) THEN
+        RETURN(1);
+    IF (_PLSW_BP->_PLSW_BLOCK_SIZE != EXPECTED) THEN
+        RETURN(2);
+
+    PREV = 0;
+    CURR = _PLSW_FREE_HEAD;
+    DO WHILE (CURR != 0 AND CURR < BLOCK);
+        PREV = CURR;
+        _PLSW_BP = CURR;
+        CURR = _PLSW_BP->_PLSW_BLOCK_NEXT;
+    END;
+
+    _PLSW_BP = BLOCK;
+    _PLSW_BP->_PLSW_BLOCK_NEXT = CURR;
+    IF (PREV = 0) THEN
+        _PLSW_FREE_HEAD = BLOCK;
+    ELSE DO;
+        _PLSW_BP = PREV;
+        _PLSW_BP->_PLSW_BLOCK_NEXT = BLOCK;
+    END;
+
+    _PLSW_BP = BLOCK;
+    BLK_SIZE = _PLSW_BP->_PLSW_BLOCK_SIZE;
+    IF (CURR != 0) THEN DO;
+        IF (BLOCK + BLK_SIZE = CURR) THEN DO;
+            _PLSW_BP = CURR;
+            NEXT_AFTER = _PLSW_BP->_PLSW_BLOCK_NEXT;
+            NEXT_SIZE = _PLSW_BP->_PLSW_BLOCK_SIZE;
+            _PLSW_BP = BLOCK;
+            _PLSW_BP->_PLSW_BLOCK_SIZE = BLK_SIZE + NEXT_SIZE;
+            _PLSW_BP->_PLSW_BLOCK_NEXT = NEXT_AFTER;
+        END;
+    END;
+
+    RETURN(0);
+END;
+
+%ENDIF;
+"#;
+
+const STORAGE_MACROS: &[DemoMacro] = &[DemoMacro {
+    name: "_plsw_storage.msw",
+    source: PLSW_STORAGE_MSW,
+}];
+
 /// All demos, alphabetized by name.
 pub const DEMOS: &[Demo] = &[
     // ── An Empty Module ─────────────────────────────────────────────
@@ -166,6 +323,55 @@ DCL 1 TCB BASED,
             },
         ],
     },
+    // ── Define ───────────────────────────────────────────────────────
+    Demo {
+        name: "Define",
+        description: "%DEFINE compile-time constants and value substitution",
+        source: r#"/* define.plsw -- %DEFINE Value Substitution Demo
+ * Demonstrates compile-time constants via %DEFINE.
+ * Constants are substituted at lex time -- zero runtime cost. */
+
+%DEFINE UART_DATA 16711936;   /* 0xFF0100 */
+%DEFINE NEWLINE 10;
+%DEFINE MAX_COUNT 5;
+
+DCL DIGITS(12) CHAR;
+
+/* Print an integer to UART */
+PRINT_INT: PROC(N INT);
+    DCL D INT;
+    DCL POS INT;
+
+    IF (N = 0) THEN DO;
+        CALL UART_PUTCHAR(48);
+        RETURN;
+    END;
+
+    POS = 0;
+    DO WHILE (N > 0);
+        D = N / 10;
+        DIGITS(POS) = N - D * 10 + 48;
+        N = D;
+        POS = POS + 1;
+    END;
+
+    DO WHILE (POS > 0);
+        POS = POS - 1;
+        CALL UART_PUTCHAR(DIGITS(POS));
+    END;
+END;
+
+/* Main: count from 1 to MAX_COUNT */
+MAIN: PROC;
+    DCL I INT;
+    DO I = 1 TO MAX_COUNT;
+        CALL PRINT_INT(I);
+        CALL UART_PUTCHAR(NEWLINE);
+    END;
+END;
+"#,
+        macros: &[],
+    },
     // ── Else Print ──────────────────────────────────────────────────
     Demo {
         name: "Else Print",
@@ -296,23 +502,48 @@ END;
     // ── Loop ─────────────────────────────────────────────────────────
     Demo {
         name: "Loop",
-        description: "Print A-J with DO counted loop",
+        description: "Print numbers 1-10 with DO counted loop and PRINT_INT",
         source: r#"/* loop.plsw -- Counted Loop Demo for PL/SW
- * Prints letters A through J using DO I = 0 TO 9.
- * Demonstrates: DO count, UART_PUTCHAR, arithmetic. */
+ * Prints numbers 1 through 10 using DO I = 1 TO 10.
+ * Demonstrates: DO count syntax, procedure calls, arithmetic,
+ * integer-to-decimal output via UART. */
 
-DCL MSG(16) CHAR INIT('Loop complete');
+DCL DIGITS(12) CHAR;
 
+/* Print an integer to UART as decimal digits */
+PRINT_INT: PROC(N INT);
+    DCL D INT;
+    DCL POS INT;
+
+    /* Handle zero */
+    IF (N = 0) THEN DO;
+        CALL UART_PUTCHAR(48);
+        RETURN;
+    END;
+
+    /* Extract digits into buffer (reverse order) */
+    POS = 0;
+    DO WHILE (N > 0);
+        D = N / 10;
+        DIGITS(POS) = N - D * 10 + 48;
+        N = D;
+        POS = POS + 1;
+    END;
+
+    /* Print digits in forward order */
+    DO WHILE (POS > 0);
+        POS = POS - 1;
+        CALL UART_PUTCHAR(DIGITS(POS));
+    END;
+END;
+
+/* Main: print numbers 1 through 10 */
 MAIN: PROC;
     DCL I INT;
-
-    /* Print A through J (ASCII 65-74) */
-    DO I = 0 TO 9;
-        CALL UART_PUTCHAR(65 + I);
+    DO I = 1 TO 10;
+        CALL PRINT_INT(I);
+        CALL UART_PUTCHAR(10);
     END;
-    CALL UART_PUTCHAR(10);
-
-    CALL UART_PUTS(ADDR(MSG));
 END;
 "#,
         macros: &[],
@@ -467,16 +698,15 @@ END;
     Demo {
         name: "Record",
         description: "Records, pointers, and field access",
-        source: r#"/* record.plsw -- Record and Pointer Demo
- * Demonstrates: level-based DCL, record field access,
- * ADDR(), pointer dereference (P->field). */
+        source: r#"/* record.plsw -- Record and Pointer Demo for PL/SW
+ * Declares a multi-level record, fills fields, takes address,
+ * accesses fields via pointer dereference.
+ * Demonstrates: level-based DCL, record field access, ADDR(),
+ * pointer dereference (P->field), arithmetic on fields. */
 
-DCL LBL_SUM(8) CHAR INIT('Sum: ');
-DCL LBL_X(8) CHAR INIT('X: ');
-DCL LBL_Y(8) CHAR INIT('Y: ');
 DCL DIGITS(12) CHAR;
 
-/* Print a non-negative integer to UART as decimal digits */
+/* Print an integer to UART as decimal digits */
 PRINT_INT: PROC(N INT);
     DCL D INT;
     DCL POS INT;
@@ -500,36 +730,342 @@ PRINT_INT: PROC(N INT);
     END;
 END;
 
+/* Main: record and pointer operations */
 MAIN: PROC;
     DCL 1 POINT,
         3 X INT,
         3 Y INT;
     DCL P PTR;
-    DCL SUM INT;
 
-    /* Fill record fields */
-    POINT.X = 3;
-    POINT.Y = 7;
+    /* Fill record fields directly */
+    POINT.X = 100;
+    POINT.Y = 200;
 
-    /* Access via pointer */
+    /* Print field values */
+    CALL UART_PUTS(ADDR('X = '));
+    CALL PRINT_INT(POINT.X);
+    CALL UART_PUTCHAR(10);
+
+    CALL UART_PUTS(ADDR('Y = '));
+    CALL PRINT_INT(POINT.Y);
+    CALL UART_PUTCHAR(10);
+
+    /* Take address, access via pointer */
     P = ADDR(POINT);
-    SUM = P->X + P->Y;
 
-    /* Print values as decimal digits */
-    CALL UART_PUTS(ADDR(LBL_X));
+    CALL UART_PUTS(ADDR('P->X = '));
     CALL PRINT_INT(P->X);
     CALL UART_PUTCHAR(10);
 
-    CALL UART_PUTS(ADDR(LBL_Y));
+    CALL UART_PUTS(ADDR('P->Y = '));
     CALL PRINT_INT(P->Y);
     CALL UART_PUTCHAR(10);
 
-    CALL UART_PUTS(ADDR(LBL_SUM));
-    CALL PRINT_INT(SUM);
+    /* Compute sum via pointer */
+    CALL UART_PUTS(ADDR('Sum = '));
+    CALL PRINT_INT(P->X + P->Y);
     CALL UART_PUTCHAR(10);
 END;
 "#,
         macros: &[],
+    },
+    // ── Select ───────────────────────────────────────────────────────
+    Demo {
+        name: "Select",
+        description: "SELECT/WHEN/OTHERWISE token classifier",
+        source: r#"/* SELECT/WHEN demo -- token classifier */
+
+MAIN: PROC;
+    DCL X INT(24);
+
+    X = 2;
+
+    SELECT;
+        WHEN (X = 1) CALL UART_PUTCHAR(65);
+        WHEN (X = 2) CALL UART_PUTCHAR(66);
+        WHEN (X = 3) CALL UART_PUTCHAR(67);
+        OTHERWISE CALL UART_PUTCHAR(63);
+    END;
+
+    CALL UART_PUTCHAR(10);
+END;
+"#,
+        macros: &[],
+    },
+    // ── Select Nested ────────────────────────────────────────────────
+    Demo {
+        name: "Select Nested",
+        description: "Nested SELECT/WHEN handler chains for token dispatch",
+        source: "/* SELECT/WHEN demo -- nested handler chains for token dispatch */
+
+DCL S1(10) CHAR INIT('keyword');
+DCL S2(10) CHAR INIT('number');
+DCL S3(10) CHAR INIT('string');
+DCL S4(10) CHAR INIT('unknown');
+DCL S5(10) CHAR INIT('operator');
+DCL SP(10) CHAR INIT('operator: ');
+DCL NL(2) CHAR INIT('
+');
+DCL T1(10) CHAR INIT('Test 1: ');
+DCL T2(10) CHAR INIT('Test 2: ');
+DCL T3(10) CHAR INIT('Test 3: nested');
+DCL PA(2) CHAR INIT('+');
+DCL MI(2) CHAR INIT('-');
+DCL ST(2) CHAR INIT('*');
+DCL QU(2) CHAR INIT('?');
+
+MAIN: PROC;
+    DCL X INT(24);
+    DCL Y INT(24);
+
+    CALL UART_PUTS(ADDR(T1));
+    X = 1;
+    SELECT;
+        WHEN (X = 1) CALL UART_PUTS(ADDR(S1));
+        WHEN (X = 2) CALL UART_PUTS(ADDR(S2));
+        WHEN (X = 3) CALL UART_PUTS(ADDR(S3));
+        OTHERWISE CALL UART_PUTS(ADDR(S4));
+    END;
+    CALL UART_PUTS(ADDR(NL));
+
+    CALL UART_PUTS(ADDR(T2));
+    X = 4;
+    SELECT;
+        WHEN (X = 1) CALL UART_PUTS(ADDR(S1));
+        WHEN (X = 2) CALL UART_PUTS(ADDR(S2));
+        WHEN (X = 3) CALL UART_PUTS(ADDR(S3));
+        OTHERWISE CALL UART_PUTS(ADDR(S4));
+    END;
+    CALL UART_PUTS(ADDR(NL));
+
+    CALL UART_PUTS(ADDR(T3));
+    CALL UART_PUTS(ADDR(NL));
+    X = 4;
+    Y = 2;
+    SELECT;
+        WHEN (X = 1) CALL UART_PUTS(ADDR(S1));
+        WHEN (X = 4) DO;
+            CALL UART_PUTS(ADDR(SP));
+            SELECT;
+                WHEN (Y = 1) CALL UART_PUTS(ADDR(PA));
+                WHEN (Y = 2) CALL UART_PUTS(ADDR(MI));
+                WHEN (Y = 3) CALL UART_PUTS(ADDR(ST));
+                OTHERWISE CALL UART_PUTS(ADDR(QU));
+            END;
+        END;
+        OTHERWISE CALL UART_PUTS(ADDR(S4));
+    END;
+    CALL UART_PUTS(ADDR(NL));
+END;
+",
+        macros: &[],
+    },
+    // ── Storage: Basic ───────────────────────────────────────────────
+    Demo {
+        name: "Storage: Basic",
+        description: "_PLSW_GETMAIN/_PLSW_FREEMAIN single allocation cycle",
+        source: r#"/* storage_basic.plsw -- single alloc, write, free.
+ *
+ * Allocates a 12-byte block, writes a marker into it, frees it,
+ * and prints the result of each step. Verifies the basic alloc
+ * + free path (header sentinel set on alloc, cleared on free,
+ * size-mismatch and double-free both return 0). */
+
+%DEFINE PLSW_HEAP_SIZE 1024;
+%INCLUDE _plsw_storage;
+
+DCL P INT;
+DCL RC INT;
+
+MAIN: PROC;
+    P = _PLSW_GETMAIN(12);
+    IF (P != 0) THEN
+        CALL UART_PUTS(ADDR(MSG_OK));
+    ELSE
+        CALL UART_PUTS(ADDR(MSG_OOM));
+
+    RC = _PLSW_FREEMAIN(P, 12);
+    IF (RC = 0) THEN
+        CALL UART_PUTS(ADDR(MSG_FREED));
+    ELSE
+        CALL UART_PUTS(ADDR(MSG_FAIL));
+END;
+
+DCL MSG_OK    (16) CHAR INIT('alloc 12: ok');
+DCL MSG_OOM   (16) CHAR INIT('alloc 12: oom');
+DCL MSG_FREED (16) CHAR INIT('free: ok');
+DCL MSG_FAIL  (16) CHAR INIT('free: fail');
+"#,
+        macros: STORAGE_MACROS,
+    },
+    // ── Storage: Coalesce ────────────────────────────────────────────
+    Demo {
+        name: "Storage: Coalesce",
+        description: "Forward-coalesce on free reconstitutes a large free block",
+        source: r#"/* storage_coalesce.plsw -- forward-coalesce on free.
+ *
+ * Allocates three 100-byte blocks. Frees them in reverse order
+ * (C, B, A). Each free should coalesce with the next-higher free
+ * block, eventually reconstituting a single ~1024-byte free
+ * region. Verifies by re-allocating a block larger than any
+ * original (800 bytes) -- only succeeds if coalesce worked. */
+
+%DEFINE PLSW_HEAP_SIZE 1024;
+%INCLUDE _plsw_storage;
+
+DCL A INT;
+DCL B INT;
+DCL C INT;
+DCL BIG INT;
+
+MAIN: PROC;
+    A = _PLSW_GETMAIN(100);
+    B = _PLSW_GETMAIN(100);
+    C = _PLSW_GETMAIN(100);
+
+    IF (A != 0 AND B != 0 AND C != 0) THEN
+        CALL UART_PUTS(ADDR(MSG_3OK));
+    ELSE
+        CALL UART_PUTS(ADDR(MSG_3FAIL));
+
+    /* Free in reverse so each forward-coalesce extends the gap */
+    CALL _PLSW_FREEMAIN(C, 100);
+    CALL _PLSW_FREEMAIN(B, 100);
+    CALL _PLSW_FREEMAIN(A, 100);
+
+    BIG = _PLSW_GETMAIN(800);
+    IF (BIG != 0) THEN
+        CALL UART_PUTS(ADDR(MSG_BIG_OK));
+    ELSE
+        CALL UART_PUTS(ADDR(MSG_BIG_FAIL));
+END;
+
+DCL MSG_3OK     (24) CHAR INIT('three 100-byte: ok');
+DCL MSG_3FAIL   (24) CHAR INIT('three 100-byte: fail');
+DCL MSG_BIG_OK  (24) CHAR INIT('alloc 800 after: ok');
+DCL MSG_BIG_FAIL(24) CHAR INIT('alloc 800 after: fail');
+"#,
+        macros: STORAGE_MACROS,
+    },
+    // ── Storage: Double Free ─────────────────────────────────────────
+    Demo {
+        name: "Storage: Double Free",
+        description: "_PLSW_FREEMAIN returns RC=1 on a second free of the same block",
+        source: r#"/* storage_double_free.plsw -- double-free detection.
+ *
+ * Allocates a block, frees it once (RC=0), tries to free again
+ * (RC=1, the alloc-magic sentinel was cleared by the first free
+ * so the header no longer looks allocated). */
+
+%DEFINE PLSW_HEAP_SIZE 256;
+%INCLUDE _plsw_storage;
+
+DCL P INT;
+DCL RC1 INT;
+DCL RC2 INT;
+
+MAIN: PROC;
+    P = _PLSW_GETMAIN(20);
+    RC1 = _PLSW_FREEMAIN(P, 20);
+    RC2 = _PLSW_FREEMAIN(P, 20);
+
+    IF (RC1 = 0) THEN
+        CALL UART_PUTS(ADDR(MSG_FIRST_OK));
+    ELSE
+        CALL UART_PUTS(ADDR(MSG_FIRST_BAD));
+
+    IF (RC2 = 1) THEN
+        CALL UART_PUTS(ADDR(MSG_SECOND_DETECTED));
+    ELSE
+        CALL UART_PUTS(ADDR(MSG_SECOND_MISSED));
+END;
+
+DCL MSG_FIRST_OK        (32) CHAR INIT('first free: rc=0');
+DCL MSG_FIRST_BAD       (32) CHAR INIT('first free: rc!=0');
+DCL MSG_SECOND_DETECTED (32) CHAR INIT('second free: rc=1 (detected)');
+DCL MSG_SECOND_MISSED   (32) CHAR INIT('second free: missed!');
+"#,
+        macros: STORAGE_MACROS,
+    },
+    // ── Storage: OOM ─────────────────────────────────────────────────
+    Demo {
+        name: "Storage: OOM",
+        description: "_PLSW_GETMAIN returns 0 when the request exceeds the heap",
+        source: r#"/* storage_oom.plsw -- out-of-memory return.
+ *
+ * Allocates a block larger than the heap. _PLSW_GETMAIN must
+ * return 0 and the allocator must remain in a valid state
+ * (subsequent in-bounds alloc still succeeds). */
+
+%DEFINE PLSW_HEAP_SIZE 256;
+%INCLUDE _plsw_storage;
+
+DCL TOO_BIG INT;
+DCL OK_PTR INT;
+
+MAIN: PROC;
+    /* 1024 > heap (256). Must return 0. */
+    TOO_BIG = _PLSW_GETMAIN(1024);
+    IF (TOO_BIG = 0) THEN
+        CALL UART_PUTS(ADDR(MSG_OOM));
+    ELSE
+        CALL UART_PUTS(ADDR(MSG_NOT_OOM));
+
+    /* Allocator should still work for in-bounds requests after OOM */
+    OK_PTR = _PLSW_GETMAIN(100);
+    IF (OK_PTR != 0) THEN
+        CALL UART_PUTS(ADDR(MSG_OK_AFTER));
+    ELSE
+        CALL UART_PUTS(ADDR(MSG_BROKEN));
+END;
+
+DCL MSG_OOM      (28) CHAR INIT('alloc 1024/256: oom');
+DCL MSG_NOT_OOM  (28) CHAR INIT('alloc 1024/256: not oom!');
+DCL MSG_OK_AFTER (28) CHAR INIT('alloc 100 after oom: ok');
+DCL MSG_BROKEN   (28) CHAR INIT('alloc 100 after oom: fail');
+"#,
+        macros: STORAGE_MACROS,
+    },
+    // ── Storage: Size Mismatch ───────────────────────────────────────
+    Demo {
+        name: "Storage: Size Mismatch",
+        description: "_PLSW_FREEMAIN returns RC=2 when LEN doesn't match the alloc size",
+        source: r#"/* storage_size_mismatch.plsw -- size-mismatch detection.
+ *
+ * Allocates 12 bytes; tries to free with LEN=11. Must return
+ * RC=2 (size mismatch). The block stays allocated, so a correct
+ * free with LEN=12 afterwards must succeed (RC=0). */
+
+%DEFINE PLSW_HEAP_SIZE 256;
+%INCLUDE _plsw_storage;
+
+DCL P INT;
+DCL RC_BAD INT;
+DCL RC_OK INT;
+
+MAIN: PROC;
+    P = _PLSW_GETMAIN(12);
+
+    RC_BAD = _PLSW_FREEMAIN(P, 11);
+    IF (RC_BAD = 2) THEN
+        CALL UART_PUTS(ADDR(MSG_MISMATCH));
+    ELSE
+        CALL UART_PUTS(ADDR(MSG_NO_MISMATCH));
+
+    /* Block must still be allocated; correct length frees it */
+    RC_OK = _PLSW_FREEMAIN(P, 12);
+    IF (RC_OK = 0) THEN
+        CALL UART_PUTS(ADDR(MSG_FREED));
+    ELSE
+        CALL UART_PUTS(ADDR(MSG_BROKEN));
+END;
+
+DCL MSG_MISMATCH    (28) CHAR INIT('free len=11: rc=2');
+DCL MSG_NO_MISMATCH (28) CHAR INIT('free len=11: missed!');
+DCL MSG_FREED       (28) CHAR INIT('free len=12: ok');
+DCL MSG_BROKEN      (28) CHAR INIT('free len=12: broken');
+"#,
+        macros: STORAGE_MACROS,
     },
     // ── Then Print ──────────────────────────────────────────────────
     Demo {

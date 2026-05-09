@@ -8,7 +8,8 @@
 use std::collections::VecDeque;
 use std::time::Duration;
 
-use cor24_emulator::{Assembler, EmulatorCore, StopReason};
+use cor24_assembler::Assembler;
+use cor24_emulator::{EmulatorCore, StopReason};
 
 /// Embedded PL/SW compiler assembly source (from sibling project build).
 const COMPILER_ASM: &str = include_str!(env!("PLSW_COMPILER_PATH"));

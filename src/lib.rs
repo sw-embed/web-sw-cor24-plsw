@@ -15,7 +15,8 @@ use wasm_bindgen::JsCast;
 use web_sys::{HtmlInputElement, HtmlSelectElement};
 use yew::prelude::*;
 
-use cor24_emulator::{Assembler, EmulatorCore, StopReason};
+use cor24_assembler::Assembler;
+use cor24_emulator::{EmulatorCore, StopReason};
 
 /// Smoke test: assemble a trivial COR24 program, run it, verify register value.
 fn emulator_smoke_test() -> Result<String, String> {

@@ -52,6 +52,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cor24-assembler"
+version = "0.1.0"
+dependencies = [
+ "cor24-isa",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "cor24-emulator"
 version = "0.1.0"
 dependencies = [
@@ -1107,6 +1116,7 @@ name = "web-sw-cor24-plsw"
 version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
+ "cor24-assembler",
  "cor24-emulator",
  "cor24-isa",
  "gloo 0.11.0",
