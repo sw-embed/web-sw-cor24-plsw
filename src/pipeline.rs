@@ -20,11 +20,15 @@ const BOOT_LIMIT: u64 = 50_000_000;
 /// Instructions per batch when feeding input.
 const FEED_BATCH: u64 = 100_000;
 
-/// Maximum total instructions for a compilation run.
-const COMPILE_LIMIT: u64 = 500_000_000;
+/// Maximum total instructions for a compilation run. Storage demos with
+/// `%INCLUDE _plsw_storage` weigh in around ~95M cor24 instructions even
+/// on the native CLI; leave generous headroom for larger programs.
+const COMPILE_LIMIT: u64 = 2_000_000_000;
 
-/// Maximum instructions for running the compiled program.
-const RUN_LIMIT: u64 = 10_000_000;
+/// Maximum instructions for running the compiled program. Programs that
+/// init a multi-KB heap before any user code run for a few million
+/// instructions just on setup; budget plenty of headroom.
+const RUN_LIMIT: u64 = 100_000_000;
 
 /// Cooperative browser yield cadence for Mass Compile.
 const COOPERATIVE_YIELD_BATCHES: u64 = 8;

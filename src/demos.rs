@@ -20,35 +20,65 @@ pub struct Demo {
 const PLSW_STORAGE_MSW: &str = r#"/* _plsw_storage.msw -- PL/SW heap allocator runtime
  *
  * Provides _PLSW_GETMAIN / _PLSW_FREEMAIN procedures backed by
- * a free-list allocator over a statically-declared heap region.
+ * a free-list allocator over a statically-declared heap region,
+ * plus PL/I-flavored ?GETMAIN / ?FREEMAIN macros that wrap them.
  *
  *   %INCLUDE _plsw_storage;       -- entry module: impl + heap
+ *
+ *   %DEFINE PLSW_STORAGE_HEADERS_ONLY 1;
+ *   %INCLUDE _plsw_storage;       -- non-entry module: header only
  *
  *   %DEFINE PLSW_HEAP_SIZE 32768; -- override default 64KB heap
  *   %INCLUDE _plsw_storage;
  *
- * Calling convention:
+ * Macro form (PL/I-flavored; preferred surface):
+ *   ?GETMAIN  SET(P)  LENGTH(N)  RC(ret);
+ *     -- expands to: P = _PLSW_GETMAIN(N);
+ *                    IF (P = 0) THEN ret = 4; ELSE ret = 0;
+ *     -- ret is 0 on success, 4 on out-of-memory.
+ *
+ *   ?FREEMAIN ADDR(P) LENGTH(N) RC(ret);
+ *     -- expands to: ret = _PLSW_FREEMAIN(P, N);
+ *     -- ret passes through the procedure's return:
+ *          0 = success
+ *          1 = double-free / invalid pointer
+ *          2 = size mismatch (LENGTH doesn't match recorded size)
+ *
+ * Clause naming follows MVS convention:
+ *   SET(lvalue)   -- GETMAIN: receive-pointer (written)
+ *   ADDR(lvalue)  -- FREEMAIN: source-pointer (read)
+ *   LENGTH(expr)  -- block size in bytes
+ *   RC(lvalue)    -- return code (written)
+ *
+ * Procedure form (lower-level surface; same effect):
  *   P  = _PLSW_GETMAIN(N);            P=0 on OOM
- *   RC = _PLSW_FREEMAIN(P, N);        RC=0 on success,
- *                                     1=double-free/invalid,
- *                                     2=size mismatch
+ *   RC = _PLSW_FREEMAIN(P, N);        same RC values as above
  */
 
+/* --- Default heap size (overridable via %DEFINE before include) --- */
 %IF DEFINED(PLSW_HEAP_SIZE);
 %ELSE;
 %DEFINE PLSW_HEAP_SIZE 65536;
 %ENDIF;
 
+/* --- Allocated-block sentinel ---
+ * Stored in BLOCK_NEXT while the block is allocated. 0xFFFFFF
+ * cannot be a real heap address (heap lives in low SRAM under
+ * 1 MB). Detects double-free and validates that _PLSW_FREEMAIN
+ * received a previously-allocated block. */
 %DEFINE _PLSW_ALLOC_MAGIC 16777215;
 
+/* --- Block header (BASED template) --- */
 DCL 1 _PLSW_BLOCK BASED,
   3 _PLSW_BLOCK_SIZE INT,
   3 _PLSW_BLOCK_NEXT INT;
 DCL _PLSW_BP PTR;
 
 %IF DEFINED(PLSW_STORAGE_HEADERS_ONLY);
+/* Non-entry module: no heap, no impl. */
 %ELSE;
 
+/* --- Heap region + free-list head --- */
 DCL _PLSW_HEAP_BUF(PLSW_HEAP_SIZE) BYTE;
 DCL _PLSW_FREE_HEAD INT INIT(0);
 DCL _PLSW_INIT_DONE INT INIT(0);
@@ -166,6 +196,27 @@ _PLSW_FREEMAIN: PROC(USERADDR INT, LEN INT) RETURNS(INT);
 END;
 
 %ENDIF;
+
+/* --- PL/I-flavored macros wrapping the procedures ---
+ *
+ * Defined unconditionally so non-entry modules can use the macros
+ * even when their include doesn't emit the impl + heap. */
+
+MACRODEF GETMAIN;
+    REQUIRED SET(lvalue);
+    REQUIRED LENGTH(expr);
+    REQUIRED RC(lvalue);
+    {SET} = _PLSW_GETMAIN({LENGTH});
+    IF ({SET} = 0) THEN {RC} = 4;
+    ELSE {RC} = 0;
+END;
+
+MACRODEF FREEMAIN;
+    REQUIRED ADDR(lvalue);
+    REQUIRED LENGTH(expr);
+    REQUIRED RC(lvalue);
+    {RC} = _PLSW_FREEMAIN({ADDR}, {LENGTH});
+END;
 "#;
 
 const STORAGE_MACROS: &[DemoMacro] = &[DemoMacro {
@@ -423,7 +474,7 @@ END;
 DCL MSG(20) CHAR INIT('Hello from macros!');
 
 MAIN: PROC;
-    ?GREET(MSG(_MSG));
+    ?GREET MSG(_MSG);
 END;
 "#,
         macros: &[DemoMacro {
@@ -567,13 +618,13 @@ MAIN: PROC;
     CALL UART_PUTS(ADDR(MSG));
 
     /* LED on via macro (active-low: 0=on) */
-    ?LED_SET(VAL(0));
+    ?LED_SET VAL(0);
 
     /* NOP macro -- just loads a constant */
-    ?NOP(COUNT(99));
+    ?NOP COUNT(99);
 
     /* LED off via macro */
-    ?LED_SET(VAL(1));
+    ?LED_SET VAL(1);
 END;
 "#,
         macros: &[DemoMacro {
@@ -630,7 +681,7 @@ MAIN: PROC;
     CALL PRINT_INT(TOTAL);
     CALL UART_PUTCHAR(10);
 
-    ?EMIT_NOP(COUNT(3));
+    ?EMIT_NOP COUNT(3);
 END;
 "#,
         macros: &[
@@ -863,13 +914,11 @@ END;
     // ── Storage: Basic ───────────────────────────────────────────────
     Demo {
         name: "Storage: Basic",
-        description: "_PLSW_GETMAIN/_PLSW_FREEMAIN single allocation cycle",
-        source: r#"/* storage_basic.plsw -- single alloc, write, free.
+        description: "?GETMAIN/?FREEMAIN macros — single allocation cycle",
+        source: r#"/* storage_basic.plsw -- single alloc, free via ?GETMAIN/?FREEMAIN.
  *
- * Allocates a 12-byte block, writes a marker into it, frees it,
- * and prints the result of each step. Verifies the basic alloc
- * + free path (header sentinel set on alloc, cleared on free,
- * size-mismatch and double-free both return 0). */
+ * Allocates a 12-byte block, frees it, prints status from each.
+ * Uses the macros that wrap _PLSW_GETMAIN/_PLSW_FREEMAIN. */
 
 %DEFINE PLSW_HEAP_SIZE 1024;
 %INCLUDE _plsw_storage;
@@ -878,13 +927,13 @@ DCL P INT;
 DCL RC INT;
 
 MAIN: PROC;
-    P = _PLSW_GETMAIN(12);
-    IF (P != 0) THEN
+    ?GETMAIN LENGTH(12) SET(P) RC(RC);
+    IF (RC = 0) THEN
         CALL UART_PUTS(ADDR(MSG_OK));
     ELSE
         CALL UART_PUTS(ADDR(MSG_OOM));
 
-    RC = _PLSW_FREEMAIN(P, 12);
+    ?FREEMAIN LENGTH(12) ADDR(P) RC(RC);
     IF (RC = 0) THEN
         CALL UART_PUTS(ADDR(MSG_FREED));
     ELSE
@@ -917,11 +966,12 @@ DCL A INT;
 DCL B INT;
 DCL C INT;
 DCL BIG INT;
+DCL RC INT;
 
 MAIN: PROC;
-    A = _PLSW_GETMAIN(100);
-    B = _PLSW_GETMAIN(100);
-    C = _PLSW_GETMAIN(100);
+    ?GETMAIN LENGTH(100) SET(A) RC(RC);
+    ?GETMAIN LENGTH(100) SET(B) RC(RC);
+    ?GETMAIN LENGTH(100) SET(C) RC(RC);
 
     IF (A != 0 AND B != 0 AND C != 0) THEN
         CALL UART_PUTS(ADDR(MSG_3OK));
@@ -929,12 +979,12 @@ MAIN: PROC;
         CALL UART_PUTS(ADDR(MSG_3FAIL));
 
     /* Free in reverse so each forward-coalesce extends the gap */
-    CALL _PLSW_FREEMAIN(C, 100);
-    CALL _PLSW_FREEMAIN(B, 100);
-    CALL _PLSW_FREEMAIN(A, 100);
+    ?FREEMAIN LENGTH(100) ADDR(C) RC(RC);
+    ?FREEMAIN LENGTH(100) ADDR(B) RC(RC);
+    ?FREEMAIN LENGTH(100) ADDR(A) RC(RC);
 
-    BIG = _PLSW_GETMAIN(800);
-    IF (BIG != 0) THEN
+    ?GETMAIN LENGTH(800) SET(BIG) RC(RC);
+    IF (RC = 0) THEN
         CALL UART_PUTS(ADDR(MSG_BIG_OK));
     ELSE
         CALL UART_PUTS(ADDR(MSG_BIG_FAIL));
@@ -954,7 +1004,7 @@ DCL MSG_BIG_FAIL(24) CHAR INIT('alloc 800 after: fail');
         source: r#"/* storage_double_free.plsw -- double-free detection.
  *
  * Allocates a block, frees it once (RC=0), tries to free again
- * (RC=1, the alloc-magic sentinel was cleared by the first free
+ * (RC=1; the alloc-magic sentinel was cleared by the first free
  * so the header no longer looks allocated). */
 
 %DEFINE PLSW_HEAP_SIZE 256;
@@ -963,11 +1013,12 @@ DCL MSG_BIG_FAIL(24) CHAR INIT('alloc 800 after: fail');
 DCL P INT;
 DCL RC1 INT;
 DCL RC2 INT;
+DCL RC INT;
 
 MAIN: PROC;
-    P = _PLSW_GETMAIN(20);
-    RC1 = _PLSW_FREEMAIN(P, 20);
-    RC2 = _PLSW_FREEMAIN(P, 20);
+    ?GETMAIN LENGTH(20) SET(P) RC(RC);
+    ?FREEMAIN LENGTH(20) ADDR(P) RC(RC1);
+    ?FREEMAIN LENGTH(20) ADDR(P) RC(RC2);
 
     IF (RC1 = 0) THEN
         CALL UART_PUTS(ADDR(MSG_FIRST_OK));
@@ -993,27 +1044,28 @@ DCL MSG_SECOND_MISSED   (32) CHAR INIT('second free: missed!');
         description: "_PLSW_GETMAIN returns 0 when the request exceeds the heap",
         source: r#"/* storage_oom.plsw -- out-of-memory return.
  *
- * Allocates a block larger than the heap. _PLSW_GETMAIN must
- * return 0 and the allocator must remain in a valid state
- * (subsequent in-bounds alloc still succeeds). */
+ * Allocates a block larger than the heap. ?GETMAIN must set
+ * RC=4 (the OOM code) and the allocator must remain in a valid
+ * state (subsequent in-bounds alloc still succeeds). */
 
 %DEFINE PLSW_HEAP_SIZE 256;
 %INCLUDE _plsw_storage;
 
 DCL TOO_BIG INT;
 DCL OK_PTR INT;
+DCL RC INT;
 
 MAIN: PROC;
-    /* 1024 > heap (256). Must return 0. */
-    TOO_BIG = _PLSW_GETMAIN(1024);
-    IF (TOO_BIG = 0) THEN
+    /* 1024 > heap (256). Must set RC=4. */
+    ?GETMAIN LENGTH(1024) SET(TOO_BIG) RC(RC);
+    IF (RC = 4) THEN
         CALL UART_PUTS(ADDR(MSG_OOM));
     ELSE
         CALL UART_PUTS(ADDR(MSG_NOT_OOM));
 
     /* Allocator should still work for in-bounds requests after OOM */
-    OK_PTR = _PLSW_GETMAIN(100);
-    IF (OK_PTR != 0) THEN
+    ?GETMAIN LENGTH(100) SET(OK_PTR) RC(RC);
+    IF (RC = 0) THEN
         CALL UART_PUTS(ADDR(MSG_OK_AFTER));
     ELSE
         CALL UART_PUTS(ADDR(MSG_BROKEN));
@@ -1040,21 +1092,22 @@ DCL MSG_BROKEN   (28) CHAR INIT('alloc 100 after oom: fail');
 %INCLUDE _plsw_storage;
 
 DCL P INT;
-DCL RC_BAD INT;
-DCL RC_OK INT;
+DCL RC INT;
+DCL RET_BAD INT;
+DCL RET_OK INT;
 
 MAIN: PROC;
-    P = _PLSW_GETMAIN(12);
+    ?GETMAIN LENGTH(12) SET(P) RC(RC);
 
-    RC_BAD = _PLSW_FREEMAIN(P, 11);
-    IF (RC_BAD = 2) THEN
+    ?FREEMAIN LENGTH(11) ADDR(P) RC(RET_BAD);
+    IF (RET_BAD = 2) THEN
         CALL UART_PUTS(ADDR(MSG_MISMATCH));
     ELSE
         CALL UART_PUTS(ADDR(MSG_NO_MISMATCH));
 
     /* Block must still be allocated; correct length frees it */
-    RC_OK = _PLSW_FREEMAIN(P, 12);
-    IF (RC_OK = 0) THEN
+    ?FREEMAIN LENGTH(12) ADDR(P) RC(RET_OK);
+    IF (RET_OK = 0) THEN
         CALL UART_PUTS(ADDR(MSG_FREED));
     ELSE
         CALL UART_PUTS(ADDR(MSG_BROKEN));
